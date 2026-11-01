@@ -166,4 +166,4 @@ These results were not all rerun while editing this README. See [`results/README
 - [`docs/architecture/embedded-system-design.md`](docs/architecture/embedded-system-design.md): Embedded design proposal and verification limitations.
 - [`results/README.md`](results/README.md): Results and evidence index.
 
-The handwritten derivation scan and six-page technical report PDF are pending as separate submission materials. Compare the requirements matrix with the official assignment before submission.
+The handwritten derivation scan is included at [`docs/backpropogation_derivation.pdf`](docs/backpropogation_derivation.pdf), and the technical report is included at [`docs/technical_report.pdf`](docs/technical_report.pdf).

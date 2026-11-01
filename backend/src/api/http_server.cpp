@@ -5,6 +5,8 @@
 #include "workbench/api/httplib.h"
 #include "workbench/core/json.hpp"
 #include "workbench/core/job_manager.hpp"
+#include "workbench/geometry/stl_parser.hpp"
+#include "workbench/geometry/csv_parser.hpp"
 
 #include <iostream>
 #include <filesystem>
@@ -101,7 +103,111 @@ void HttpServer::setup_routes() {
         }
     });
 
-    // 4. Static web assets mounting (for exported Next.js client)
+    // 4. Geometry STL inspection endpoint
+    m_server->Post("/api/v1/geometry/stl/inspect", [](const httplib::Request& req, httplib::Response& res) {
+        std::string content;
+        std::string filename = "uploaded.stl";
+
+        if (req.is_multipart_form_data()) {
+            if (req.has_file("file")) {
+                const auto& file = req.get_file_value("file");
+                content = file.content;
+                filename = file.filename;
+            } else {
+                nlohmann::json err = {{"error", "Multipart upload missing 'file' field"}, {"code", "INVALID_INPUT"}};
+                res.set_content(err.dump(2), "application/json");
+                res.status = 400;
+                return;
+            }
+        } else {
+            bool parsed_json = false;
+            try {
+                auto body_json = nlohmann::json::parse(req.body);
+                if (body_json.is_object() && body_json.contains("content")) {
+                    if (body_json["content"].is_string()) {
+                        content = body_json["content"].get<std::string>();
+                        parsed_json = true;
+                    } else if (body_json["content"].is_object() && body_json["content"].contains("value")) {
+                        content = body_json["content"]["value"].get<std::string>();
+                        parsed_json = true;
+                    }
+                    filename = body_json.value("filename", "geometry.stl");
+                }
+            } catch (...) {
+                // Not JSON, treat as raw content
+            }
+            if (!parsed_json) {
+                content = req.body;
+            }
+        }
+
+        auto result = geometry::StlParser::parse_ascii_string(content, filename);
+        if (result.is_ok()) {
+            res.set_content(result.value().to_json(true).dump(), "application/json");
+            res.status = 200;
+        } else {
+            nlohmann::json err = {
+                {"error", result.error().message},
+                {"code", "STL_PARSE_ERROR"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = 400;
+        }
+    });
+
+    // 5. Geometry ANSYS Nodal Temperature CSV import endpoint
+    m_server->Post("/api/v1/geometry/temperature/import", [](const httplib::Request& req, httplib::Response& res) {
+        std::string content;
+        std::string filename = "nodal_temperature.csv";
+
+        if (req.is_multipart_form_data()) {
+            if (req.has_file("file")) {
+                const auto& file = req.get_file_value("file");
+                content = file.content;
+                filename = file.filename;
+            } else {
+                nlohmann::json err = {{"error", "Multipart upload missing 'file' field"}, {"code", "INVALID_INPUT"}};
+                res.set_content(err.dump(2), "application/json");
+                res.status = 400;
+                return;
+            }
+        } else {
+            bool parsed_json = false;
+            try {
+                auto body_json = nlohmann::json::parse(req.body);
+                if (body_json.is_object() && body_json.contains("content")) {
+                    if (body_json["content"].is_string()) {
+                        content = body_json["content"].get<std::string>();
+                        parsed_json = true;
+                    } else if (body_json["content"].is_object() && body_json["content"].contains("value")) {
+                        content = body_json["content"]["value"].get<std::string>();
+                        parsed_json = true;
+                    }
+                    filename = body_json.value("filename", "nodal_temperature.csv");
+                }
+            } catch (...) {
+                // Not JSON, treat as raw content
+            }
+            if (!parsed_json) {
+                content = req.body;
+            }
+        }
+
+        auto result = geometry::CsvParser::parse_ansys_csv_string(content, filename);
+        if (result.is_ok()) {
+            res.set_content(result.value().to_json(true).dump(), "application/json");
+            res.status = 200;
+        } else {
+            nlohmann::json err = {
+                {"error", result.error().message},
+                {"code", "CSV_PARSE_ERROR"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = 400;
+        }
+    });
+
+    // 6. Static web assets mounting (for exported Next.js client)
     if (!m_config.web_root.empty()) {
         std::error_code ec;
         if (std::filesystem::exists(m_config.web_root, ec)) {

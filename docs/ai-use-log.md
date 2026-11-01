@@ -49,12 +49,28 @@ This log documents all interactions with generative AI tools during the architec
 
 #### Interaction 03: Phase G1 Skeleton & Latest Next.js v16.4.3 Upgrade
 - **Date:** 31 October 2026
-- **AI Tool / Model:** Gemini 3.8 Flash (Medium) via Antigravity Pair-Programming Assistant
+- **AI Tool / Model:** Gemini 3.8 Flash via Antigravity Pair-Programming Assistant
 - **Task Description:** Build C++17 core library, loopback HTTP server with single loopback origin, Win32 `Launch.exe`, and upgrade frontend to the latest Next.js release (v16.4.3 + React 19).
 - **Key Actions & Verification:**
   - Built `backend_server.exe`, `Launch.exe`, and `test_job_manager.exe` using CMake and Ninja with MinGW-w64 GCC 13.2.0.
   - Ran CTest suite with 100% pass on `JobManagerLifecycleTest`.
   - Upgraded Next.js to v16.4.3 with Turbopack, configured static export (`output: 'export'`), generated static assets into `frontend/out/`.
   - Probed single-origin loopback server at `127.0.0.1:8091`: confirmed HTTP 200 on both static Next.js root (`/`) and C++ REST API (`/api/v1/health`).
+
+#### Interaction 04: Phase G2 Geometry Parsers & 3D WebGL Viewers
+- **Date:** 31 October 2026
+- **AI Tool / Model:** Gemini 3.8 Flash via Antigravity Pair-Programming Assistant
+- **Task Description:** Implement C++17 ASCII STL parser, ANSYS nodal CSV parser, negative test suites, Three.js STL triangle mesh viewer with OrbitControls, and 3D colored temperature point cloud viewer with raycast inspection.
+- **Key Actions & Verification:**
+  - C++ ASCII STL parser enforces `solid ... endsolid` syntax, checks for finite IEEE-754 floats, non-empty triangles, and computes 3D bounding boxes.
+  - C++ ANSYS CSV parser enforces exact schema `node_id,x_m,y_m,z_m,temperature_C`, handles column reordering, NaN detection, and duplicate node ID policies (`RejectOnDuplicate` / `KeepFirst`).
+  - Added positive and negative test fixtures in `data/` and `tests/fixtures/`.
+  - Built Three.js 3D viewers in `frontend/components/geometry/` with camera orbit, pan, zoom, fit-to-view, wireframe toggle, and hover tooltips for node inspection.
+- **Genuine Debugging Insight Encountered:**
+  - When running CTest in Release mode, tests initially aborted with `std::get: wrong index for variant`. Investigation revealed two independent root causes:
+    1. Standard `<cassert>` `assert(...)` statements are stripped in Release builds when `NDEBUG` is defined, allowing invalid stream states to proceed silently to variant access. Replaced with explicit `TEST_ASSERT(cond, msg)` throwing `std::runtime_error`.
+    2. CTest by default sets test working directories to `${CMAKE_CURRENT_BINARY_DIR}` (`build/tests/`). Added CMake `set_tests_properties(... PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")` and a multi-level fallback search path in tests.
+  - After these fixes, 100% of unit tests passed cleanly across Debug and Release configurations.
+
 
 

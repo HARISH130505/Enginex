@@ -1,0 +1,46 @@
+# Prerequisites and dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+frontend/.next/
+frontend/out/
+
+# C++ Build & Output directories
+build/
+backend/build/
+bin/
+obj/
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+!packaging/windows/Launch.exe # tracked if pre-built release binary is committed for evaluation, or excluded and staged
+
+# Testing and Coverage
+coverage/
+*.gcda
+*.gcno
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*~
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+.idea/
+
+# Environment and sensitive keys
+.env
+.env.local
+.env.*.local
+*.log

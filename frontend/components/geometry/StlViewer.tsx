@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 // In modern Three.js OrbitControls can be imported from three/examples/jsm/controls/OrbitControls
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { RotateCw, Maximize2, Layers } from "lucide-react";
+import { Maximize2, Layers } from "lucide-react";
 
 export interface StlTriangle {
   normal: { x: number; y: number; z: number };
@@ -189,4 +189,3 @@ export function StlViewer({ triangles, wireframeDefault = false }: StlViewerProp
     </div>
   );
 }
-

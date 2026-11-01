@@ -20,13 +20,6 @@ const MESH_COLORS: Record<number, string> = {
   80: "#8b5cf6",
 };
 
-const MESH_LABELS: Record<number, string> = {
-  10: "FE N=10 (amber)",
-  20: "FE N=20 (blue)",
-  40: "FE N=40 (emerald)",
-  80: "FE N=80 (violet)",
-};
-
 const PAD_LEFT = 60;
 const PAD_BOTTOM = 40;
 const PAD_TOP = 20;
@@ -292,4 +285,3 @@ export function ThermalChart({ solutions }: ThermalChartProps) {
     </div>
   );
 }
-

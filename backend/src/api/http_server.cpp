@@ -16,8 +16,87 @@
 #include <filesystem>
 #include <chrono>
 #include <memory>
+#include <cstdint>
 
 namespace enginex::api {
+
+static bool parse_thermal_request(
+    const std::string& request_body,
+    thermal::RodParameters& params,
+    std::vector<size_t>& mesh_sizes,
+    std::string& error_message)
+{
+    if (request_body.empty()) {
+        return true;
+    }
+
+    try {
+        const auto body_json = nlohmann::json::parse(request_body);
+        if (!body_json.is_object()) {
+            error_message = "Thermal request body must be a JSON object";
+            return false;
+        }
+        if (body_json.contains("L")) params.L = body_json["L"].get<double>();
+        if (body_json.contains("A")) params.A = body_json["A"].get<double>();
+        if (body_json.contains("k")) params.k = body_json["k"].get<double>();
+        if (body_json.contains("q")) params.q = body_json["q"].get<double>();
+        if (body_json.contains("T_left")) params.T_left = body_json["T_left"].get<double>();
+        if (body_json.contains("T_right")) params.T_right = body_json["T_right"].get<double>();
+
+        if (body_json.contains("mesh_sizes")) {
+            const auto& requested_meshes = body_json["mesh_sizes"];
+            if (!requested_meshes.is_array()) {
+                error_message = "mesh_sizes must be an array";
+                return false;
+            }
+            if (requested_meshes.size() > thermal::kMaxMeshStudySizes) {
+                error_message = "mesh_sizes must contain no more than " +
+                    std::to_string(thermal::kMaxMeshStudySizes) + " meshes";
+                return false;
+            }
+
+            mesh_sizes.clear();
+            mesh_sizes.reserve(requested_meshes.size());
+            for (const auto& requested_mesh : requested_meshes) {
+                uint64_t element_count = 0;
+                if (requested_mesh.is_number_unsigned()) {
+                    element_count = requested_mesh.get<uint64_t>();
+                } else if (requested_mesh.is_number_integer()) {
+                    const int64_t signed_count = requested_mesh.get<int64_t>();
+                    if (signed_count < 0) {
+                        error_message = "mesh_sizes values must be non-negative integers";
+                        return false;
+                    }
+                    element_count = static_cast<uint64_t>(signed_count);
+                } else {
+                    error_message = "mesh_sizes values must be integers";
+                    return false;
+                }
+
+                if (element_count > thermal::kMaxMeshElements) {
+                    error_message = "Number of elements N must not exceed " +
+                        std::to_string(thermal::kMaxMeshElements);
+                    return false;
+                }
+                mesh_sizes.push_back(static_cast<size_t>(element_count));
+            }
+        }
+    } catch (const std::exception& e) {
+        error_message = std::string("Invalid request body: ") + e.what();
+        return false;
+    }
+
+    return true;
+}
+
+static void set_thermal_validation_error(httplib::Response& res, const std::string& message) {
+    nlohmann::json err = {
+        {"error", message},
+        {"code", "INVALID_INPUT"}
+    };
+    res.set_content(err.dump(2), "application/json");
+    res.status = 400;
+}
 
 // Singleton registry of all hardware adapters (initialized on first use)
 static std::vector<std::unique_ptr<hardware::IDeviceAdapter>>& get_devices() {
@@ -83,7 +162,48 @@ void HttpServer::setup_routes() {
         res.status = 200;
     });
 
-    // 2. Job polling endpoint
+    // 2. Job result retrieval endpoint (must be registered before generic /api/v1/jobs/:id)
+    m_server->Get(R"(/api/v1/jobs/([^/]+)/result)", [](const httplib::Request& req, httplib::Response& res) {
+        std::string job_id = req.matches[1];
+        auto result = core::JobManager::instance().get_job_result(job_id);
+        if (result.is_ok()) {
+            res.set_content(result.value().dump(2), "application/json");
+            res.status = 200;
+        } else {
+            auto code = result.error().code;
+            if (code == core::StatusCode::NotFound) {
+                nlohmann::json err = {
+                    {"error", result.error().message},
+                    {"code", "NOT_FOUND"}
+                };
+                res.set_content(err.dump(2), "application/json");
+                res.status = 404;
+            } else if (code == core::StatusCode::Unavailable) {
+                nlohmann::json err = {
+                    {"error", result.error().message},
+                    {"code", "JOB_NOT_READY"}
+                };
+                res.set_content(err.dump(2), "application/json");
+                res.status = 409;
+            } else if (code == core::StatusCode::Cancelled) {
+                nlohmann::json err = {
+                    {"error", result.error().message},
+                    {"code", "JOB_CANCELLED"}
+                };
+                res.set_content(err.dump(2), "application/json");
+                res.status = 400;
+            } else {
+                nlohmann::json err = {
+                    {"error", result.error().message},
+                    {"code", "JOB_FAILED"}
+                };
+                res.set_content(err.dump(2), "application/json");
+                res.status = 400;
+            }
+        }
+    });
+
+    // 3. Job polling endpoint
     m_server->Get(R"(/api/v1/jobs/([^/]+))", [](const httplib::Request& req, httplib::Response& res) {
         std::string job_id = req.matches[1];
         auto result = core::JobManager::instance().get_job(job_id);
@@ -100,7 +220,7 @@ void HttpServer::setup_routes() {
         }
     });
 
-    // 3. Job cancellation endpoint
+    // 4. Job cancellation endpoint
     m_server->Post(R"(/api/v1/jobs/([^/]+)/cancel)", [](const httplib::Request& req, httplib::Response& res) {
         std::string job_id = req.matches[1];
         auto result = core::JobManager::instance().request_cancel(job_id);
@@ -112,12 +232,18 @@ void HttpServer::setup_routes() {
             res.set_content(ok.dump(2), "application/json");
             res.status = 200;
         } else {
+            int status_code = 400;
+            std::string err_code = "INVALID_ACTION";
+            if (result.error().code == core::StatusCode::NotFound) {
+                status_code = 404;
+                err_code = "NOT_FOUND";
+            }
             nlohmann::json err = {
                 {"error", result.error().message},
-                {"code", "INVALID_ACTION"}
+                {"code", err_code}
             };
             res.set_content(err.dump(2), "application/json");
-            res.status = 400;
+            res.status = status_code;
         }
     });
 
@@ -225,34 +351,84 @@ void HttpServer::setup_routes() {
         }
     });
 
-    // 6. Thermal FEA solver endpoint
+    // 6a. Asynchronous Thermal FEA job submission endpoint
+    m_server->Post("/api/v1/thermal/jobs", [](const httplib::Request& req, httplib::Response& res) {
+        thermal::RodParameters params;
+        std::vector<size_t> mesh_sizes = {10, 20, 40, 80};
+
+        std::string validation_error;
+        if (!parse_thermal_request(req.body, params, mesh_sizes, validation_error)) {
+            set_thermal_validation_error(res, validation_error);
+            return;
+        }
+
+        auto validation = thermal::Solver1D::validate_inputs(params, mesh_sizes);
+        if (validation.is_err()) {
+            set_thermal_validation_error(res, validation.error().message);
+            return;
+        }
+
+        auto submit_res = core::JobManager::instance().submit_job(
+            "thermal",
+            [params, mesh_sizes](const std::string& job_id) {
+                auto result = thermal::Solver1D::mesh_study(
+                    params,
+                    mesh_sizes,
+                    [job_id]() {
+                        return core::JobManager::instance().is_cancel_requested(job_id);
+                    },
+                    [job_id](float progress, const std::string& msg) {
+                        core::JobManager::instance().update_progress(job_id, progress, msg);
+                    }
+                );
+
+                if (result.is_err()) {
+                    if (result.error().code == core::StatusCode::Cancelled) {
+                        core::JobManager::instance().mark_cancelled(job_id, result.error().message);
+                    } else {
+                        core::JobManager::instance().mark_failed(job_id, result.error().message);
+                    }
+                } else {
+                    core::JobManager::instance().mark_completed(job_id, result.value().to_json().dump());
+                }
+            },
+            "Thermal FEA mesh convergence study queued"
+        );
+
+        if (submit_res.is_ok()) {
+            nlohmann::json ok = {
+                {"job_id", submit_res.value()},
+                {"status", "QUEUED"},
+                {"type", "thermal"},
+                {"message", "Thermal analysis job submitted successfully"}
+            };
+            res.set_content(ok.dump(2), "application/json");
+            res.status = 202;
+        } else {
+            int code = (submit_res.error().code == core::StatusCode::ResourceExhausted) ? 503 : 500;
+            nlohmann::json err = {
+                {"error", submit_res.error().message},
+                {"code", "SUBMISSION_FAILED"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = code;
+        }
+    });
+
+    // 6. Thermal FEA solver endpoint (synchronous)
     m_server->Post("/api/v1/thermal/solve", [](const httplib::Request& req, httplib::Response& res) {
         thermal::RodParameters params;
         std::vector<size_t> mesh_sizes = {10, 20, 40, 80};
 
-        try {
-            if (!req.body.empty()) {
-                auto body_json = nlohmann::json::parse(req.body);
-                if (body_json.contains("L")) params.L = body_json["L"].get<double>();
-                if (body_json.contains("A")) params.A = body_json["A"].get<double>();
-                if (body_json.contains("k")) params.k = body_json["k"].get<double>();
-                if (body_json.contains("q")) params.q = body_json["q"].get<double>();
-                if (body_json.contains("T_left")) params.T_left = body_json["T_left"].get<double>();
-                if (body_json.contains("T_right")) params.T_right = body_json["T_right"].get<double>();
-                if (body_json.contains("mesh_sizes") && body_json["mesh_sizes"].is_array()) {
-                    mesh_sizes.clear();
-                    for (const auto& n : body_json["mesh_sizes"]) {
-                        mesh_sizes.push_back(n.get<size_t>());
-                    }
-                }
-            }
-        } catch (const std::exception& e) {
-            nlohmann::json err = {
-                {"error", std::string("Invalid request body: ") + e.what()},
-                {"code", "INVALID_INPUT"}
-            };
-            res.set_content(err.dump(2), "application/json");
-            res.status = 400;
+        std::string validation_error;
+        if (!parse_thermal_request(req.body, params, mesh_sizes, validation_error)) {
+            set_thermal_validation_error(res, validation_error);
+            return;
+        }
+
+        auto validation = thermal::Solver1D::validate_inputs(params, mesh_sizes);
+        if (validation.is_err()) {
+            set_thermal_validation_error(res, validation.error().message);
             return;
         }
 
@@ -270,7 +446,82 @@ void HttpServer::setup_routes() {
         }
     });
 
-    // 7. Multicore benchmark execution endpoint
+    // 7a. Asynchronous Multicore benchmark job submission endpoint
+    m_server->Post("/api/v1/performance/jobs", [](const httplib::Request& req, httplib::Response& res) {
+        performance::BenchmarkConfig config;
+
+        try {
+            if (!req.body.empty()) {
+                auto body_json = nlohmann::json::parse(req.body);
+                config = performance::BenchmarkConfig::from_json(body_json);
+            }
+        } catch (const std::exception& e) {
+            nlohmann::json err = {
+                {"error", std::string("Invalid benchmark configuration: ") + e.what()},
+                {"code", "INVALID_INPUT"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = 400;
+            return;
+        }
+
+        if (config.batch_size == 0 || config.worker_counts.empty() || config.timed_reps == 0) {
+            nlohmann::json err = {
+                {"error", "batch_size > 0, worker_counts non-empty, and timed_reps > 0 required"},
+                {"code", "INVALID_INPUT"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = 400;
+            return;
+        }
+
+        auto submit_res = core::JobManager::instance().submit_job(
+            "performance",
+            [config](const std::string& job_id) {
+                auto result = performance::BenchmarkHarness::run_benchmark(
+                    config,
+                    [job_id]() {
+                        return core::JobManager::instance().is_cancel_requested(job_id);
+                    },
+                    [job_id](float progress, const std::string& msg) {
+                        core::JobManager::instance().update_progress(job_id, progress, msg);
+                    }
+                );
+
+                if (result.is_err()) {
+                    if (result.error().code == core::StatusCode::Cancelled) {
+                        core::JobManager::instance().mark_cancelled(job_id, result.error().message);
+                    } else {
+                        core::JobManager::instance().mark_failed(job_id, result.error().message);
+                    }
+                } else {
+                    core::JobManager::instance().mark_completed(job_id, result.value().to_json().dump());
+                }
+            },
+            "Performance benchmark queued"
+        );
+
+        if (submit_res.is_ok()) {
+            nlohmann::json ok = {
+                {"job_id", submit_res.value()},
+                {"status", "QUEUED"},
+                {"type", "performance"},
+                {"message", "Performance benchmark job submitted successfully"}
+            };
+            res.set_content(ok.dump(2), "application/json");
+            res.status = 202;
+        } else {
+            int code = (submit_res.error().code == core::StatusCode::ResourceExhausted) ? 503 : 500;
+            nlohmann::json err = {
+                {"error", submit_res.error().message},
+                {"code", "SUBMISSION_FAILED"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = code;
+        }
+    });
+
+    // 7. Multicore benchmark execution endpoint (synchronous)
     m_server->Post("/api/v1/performance/run", [](const httplib::Request& req, httplib::Response& res) {
         performance::BenchmarkConfig config;
 
@@ -473,4 +724,3 @@ uint16_t HttpServer::get_bound_port() const noexcept {
 }
 
 } // namespace enginex::api
-

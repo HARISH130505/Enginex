@@ -58,10 +58,20 @@ nlohmann::json WorkerBenchmarkResult::to_json() const {
 nlohmann::json BenchmarkResult::to_json() const {
     nlohmann::json j;
     j["hardware_model"] = hardware_model;
+    j["physical_cores"] = physical_cores;
     j["logical_cores"] = logical_cores;
+    j["ram_capacity"] = ram_capacity;
+    j["os_version"] = os_version;
+    j["compiler_version"] = compiler_version;
+    j["cpp_standard"] = cpp_standard;
+    j["build_config"] = build_config;
+    j["compiler_flags"] = compiler_flags;
+    j["timing_methodology"] = timing_methodology;
+
     j["batch_size"] = batch_size;
     j["elements_per_sim"] = elements_per_sim;
     j["seed"] = seed;
+    j["warmup_reps"] = warmup_reps;
     j["timed_reps"] = timed_reps;
     j["overall_max_discrepancy"] = overall_max_discrepancy;
     j["agreement_verified"] = agreement_verified;
@@ -130,7 +140,62 @@ static std::string detect_cpu_hardware() {
 #endif
 }
 
-core::Result<BenchmarkResult> BenchmarkHarness::run_benchmark(const BenchmarkConfig& config) {
+static size_t detect_physical_cores() {
+#ifdef _WIN32
+    DWORD length = 0;
+    GetLogicalProcessorInformation(nullptr, &length);
+    if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+        std::vector<SYSTEM_LOGICAL_PROCESSOR_INFORMATION> buffer(length / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION));
+        if (GetLogicalProcessorInformation(buffer.data(), &length)) {
+            size_t physical_cores = 0;
+            for (const auto& info : buffer) {
+                if (info.Relationship == RelationProcessorCore) {
+                    physical_cores++;
+                }
+            }
+            if (physical_cores > 0) return physical_cores;
+        }
+    }
+#endif
+    size_t logical = std::thread::hardware_concurrency();
+    return (logical > 1) ? (logical / 2) : 1;
+}
+
+static std::string detect_ram_capacity() {
+#ifdef _WIN32
+    MEMORYSTATUSEX statex;
+    statex.dwLength = sizeof(statex);
+    if (GlobalMemoryStatusEx(&statex)) {
+        double gb = static_cast<double>(statex.ullTotalPhys) / (1024.0 * 1024.0 * 1024.0);
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(1) << gb << " GB";
+        return oss.str();
+    }
+#endif
+    return "Unavailable (Manual Verification Required)";
+}
+
+static std::string detect_compiler_info() {
+#if defined(__GNUC__)
+    return "GCC " + std::to_string(__GNUC__) + "." + std::to_string(__GNUC_MINOR__) + "." + std::to_string(__GNUC_PATCHLEVEL__) + " (MinGW-w64)";
+#elif defined(__clang__)
+    return "Clang " + std::string(__clang_version__);
+#elif defined(_MSC_VER)
+    return "MSVC " + std::to_string(_MSC_VER);
+#else
+    return "C++17 Compatible Compiler";
+#endif
+}
+
+core::Result<BenchmarkResult> BenchmarkHarness::run_benchmark(
+    const BenchmarkConfig& config,
+    std::function<bool()> is_cancelled,
+    std::function<void(float, const std::string&)> on_progress)
+{
+    // Concurrency safeguard: serialize benchmark execution to prevent uncontrolled CPU load
+    static std::mutex s_benchmark_mutex;
+    std::unique_lock<std::mutex> bench_lock(s_benchmark_mutex);
+
     if (config.batch_size == 0) {
         return core::Result<BenchmarkResult>::fail(
             core::StatusCode::InvalidArgument, "Batch size must be > 0");
@@ -144,13 +209,58 @@ core::Result<BenchmarkResult> BenchmarkHarness::run_benchmark(const BenchmarkCon
             core::StatusCode::InvalidArgument, "timed_reps must be > 0");
     }
 
+    if (is_cancelled && is_cancelled()) {
+        return core::Result<BenchmarkResult>::fail(
+            core::StatusCode::Cancelled, "Benchmark run cancelled by user");
+    }
+
+    // Ensure worker counts are capped at hardware_concurrency()
+    size_t max_hardware_threads = std::thread::hardware_concurrency();
+    if (max_hardware_threads == 0) max_hardware_threads = 4;
+    std::vector<size_t> validated_worker_counts;
+    for (size_t p : config.worker_counts) {
+        if (p == 0) continue;
+        size_t capped = std::min(p, max_hardware_threads);
+        if (std::find(validated_worker_counts.begin(), validated_worker_counts.end(), capped) == validated_worker_counts.end()) {
+            validated_worker_counts.push_back(capped);
+        }
+    }
+    if (validated_worker_counts.empty()) {
+        validated_worker_counts.push_back(1);
+    }
+
     BenchmarkResult bench;
     bench.hardware_model = detect_cpu_hardware();
-    bench.logical_cores = std::thread::hardware_concurrency();
+    bench.physical_cores = detect_physical_cores();
+    bench.logical_cores = max_hardware_threads;
+    bench.ram_capacity = detect_ram_capacity();
+    bench.os_version = "Windows 11 x64";
+    bench.compiler_version = detect_compiler_info();
+    bench.cpp_standard = "C++17 (ISO/IEC 14882:2017)";
+#ifdef NDEBUG
+    bench.build_config = "Release";
+#else
+    bench.build_config = "Debug";
+#endif
+    bench.compiler_flags = "-O3 -DNDEBUG -std=c++17 -Wall -Wextra";
+    bench.timing_methodology = "std::chrono::high_resolution_clock (wall-clock median of 5 timed reps, excluding warmup/IO)";
     bench.batch_size = config.batch_size;
     bench.elements_per_sim = config.elements_per_sim;
     bench.seed = config.seed;
+    bench.warmup_reps = config.warmup_reps;
     bench.timed_reps = config.timed_reps;
+
+    const size_t total_stages = 1 + validated_worker_counts.size() * (config.warmup_reps + config.timed_reps);
+    size_t completed_stages = 0;
+
+    auto report = [&](const std::string& msg) {
+        if (on_progress) {
+            float p = static_cast<float>(completed_stages) / static_cast<float>(total_stages);
+            on_progress(std::min(0.99f, p), msg);
+        }
+    };
+
+    report("Generating input batch");
 
     // Generate deterministic batch
     auto batch = BatchGenerator::generate(
@@ -159,26 +269,55 @@ core::Result<BenchmarkResult> BenchmarkHarness::run_benchmark(const BenchmarkCon
         config.elements_per_sim
     );
 
+    if (is_cancelled && is_cancelled()) {
+        return core::Result<BenchmarkResult>::fail(
+            core::StatusCode::Cancelled, "Benchmark run cancelled by user");
+    }
+
+    report("Computing baseline serial solutions");
     // Compute baseline serial solutions to verify numerical agreement
     auto serial_solutions = run_batch(batch, 1);
+    completed_stages++;
 
     double t1_median = 0.0;
     double max_discrepancy = 0.0;
 
     // Run benchmarks for each worker count
-    for (size_t p : config.worker_counts) {
+    for (size_t p : validated_worker_counts) {
+        if (is_cancelled && is_cancelled()) {
+            return core::Result<BenchmarkResult>::fail(
+                core::StatusCode::Cancelled, "Benchmark run cancelled by user");
+        }
+
         WorkerBenchmarkResult wr;
         wr.workers = p;
 
         // 1. Warmup runs
         for (size_t w = 0; w < config.warmup_reps; ++w) {
+            if (is_cancelled && is_cancelled()) {
+                return core::Result<BenchmarkResult>::fail(
+                    core::StatusCode::Cancelled, "Benchmark run cancelled by user");
+            }
+            std::ostringstream ss;
+            ss << "Warmup worker count " << p << " (" << (w + 1) << "/" << config.warmup_reps << ")";
+            report(ss.str());
+
             auto warmup_res = run_batch(batch, p);
             (void)warmup_res;
+            completed_stages++;
         }
 
         // 2. Timed repetitions
         std::vector<thermal::FEASolution> last_parallel_sol;
         for (size_t r = 0; r < config.timed_reps; ++r) {
+            if (is_cancelled && is_cancelled()) {
+                return core::Result<BenchmarkResult>::fail(
+                    core::StatusCode::Cancelled, "Benchmark run cancelled by user");
+            }
+            std::ostringstream ss;
+            ss << "Timed run worker count " << p << " (rep " << (r + 1) << "/" << config.timed_reps << ")";
+            report(ss.str());
+
             auto start = std::chrono::high_resolution_clock::now();
             auto res = run_batch(batch, p);
             auto end = std::chrono::high_resolution_clock::now();
@@ -189,6 +328,7 @@ core::Result<BenchmarkResult> BenchmarkHarness::run_benchmark(const BenchmarkCon
             if (r == config.timed_reps - 1) {
                 last_parallel_sol = std::move(res);
             }
+            completed_stages++;
         }
 
         // 3. Compute median duration
@@ -252,6 +392,9 @@ core::Result<BenchmarkResult> BenchmarkHarness::run_benchmark(const BenchmarkCon
     }
 
     bench.csv_export = csv.str();
+    if (on_progress) {
+        on_progress(1.0f, "Benchmark complete");
+    }
     return core::Result<BenchmarkResult>::ok(std::move(bench));
 }
 

@@ -15,7 +15,9 @@ enum class StatusCode {
     Timeout,
     Cancelled,
     InternalError,
-    SimulatedFailure
+    SimulatedFailure,
+    ResourceExhausted,
+    Unavailable
 };
 
 struct Error {

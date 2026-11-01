@@ -5,22 +5,19 @@ import {
   Binary, 
   Play, 
   Download, 
-  CheckCircle2, 
   TrendingDown, 
   AlertTriangle, 
   Loader2,
-  FileText,
-  Info,
-  Sparkles
+  FileText
 } from "lucide-react";
 import { LossChart } from "@/components/neural/LossChart";
 import { GradientTable } from "@/components/neural/GradientTable";
-import { getApiBaseUrl } from "@/lib/api/client";
+import { getApiBaseUrl, getErrorMessage, type NeuralTrainingResult } from "@/lib/api/client";
 
 export default function BackpropagationPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [trainData, setTrainData] = useState<any | null>(null);
+  const [trainData, setTrainData] = useState<NeuralTrainingResult | null>(null);
 
   // Initial parameters state
   const [inputX, setInputX] = useState<string>("1.0");
@@ -55,14 +52,14 @@ export default function BackpropagationPage() {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data: NeuralTrainingResult & { error?: string } = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Training failed.");
       }
 
       setTrainData(data);
-    } catch (err: any) {
-      setError(err?.message || "Failed to execute backpropagation training.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to execute backpropagation training."));
     } finally {
       setLoading(false);
     }

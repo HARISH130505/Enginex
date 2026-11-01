@@ -136,3 +136,22 @@ set_tests_properties(BackpropTest PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_D
 set_target_properties(test_backprop PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
 )
+
+
+# 9. Job Integration test (async submission, cancellation, results)
+add_executable(test_job_integration
+    unit/test_job_integration.cpp
+)
+target_include_directories(test_job_integration PRIVATE
+    ${CMAKE_SOURCE_DIR}/backend/include
+)
+target_link_libraries(test_job_integration PRIVATE
+    workbench_performance
+    workbench_thermal
+    workbench_core
+)
+add_test(NAME JobIntegrationTest COMMAND test_job_integration)
+set_tests_properties(JobIntegrationTest PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+set_target_properties(test_job_integration PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
+)

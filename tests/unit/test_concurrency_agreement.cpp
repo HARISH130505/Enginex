@@ -57,6 +57,14 @@ void test_benchmark_suite_numerical_agreement() {
         TEST_ASSERT(wr.max_temp_diff_vs_serial <= 1e-8, "Worker discrepancy exceeds 1e-8 °C");
     }
 
+    TEST_ASSERT(!b.hardware_model.empty(), "hardware_model must not be empty");
+    TEST_ASSERT(b.logical_cores > 0, "logical_cores must be > 0");
+    TEST_ASSERT(b.physical_cores > 0, "physical_cores must be > 0");
+    TEST_ASSERT(!b.ram_capacity.empty(), "ram_capacity must not be empty");
+    TEST_ASSERT(!b.os_version.empty(), "os_version must not be empty");
+    TEST_ASSERT(!b.compiler_version.empty(), "compiler_version must not be empty");
+    TEST_ASSERT(!b.timing_methodology.empty(), "timing_methodology must not be empty");
+
     TEST_ASSERT(!b.csv_export.empty(), "CSV export must not be empty");
     TEST_ASSERT(b.csv_export.find("workers,rep_1_ms") != std::string::npos, "CSV header mismatch");
 

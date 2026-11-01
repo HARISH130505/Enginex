@@ -25,6 +25,7 @@ PACKAGE CONTENTS:
 -----------------
 - Launch.exe                     : Win32 native turnkey launcher
 - bin\backend_server.exe         : ISO C++17 REST simulation server
+- Required compiler runtime DLLs are bundled beside each executable.
 - web\                           : Statically exported Next.js client bundle
 - data\geometry\sample_cube.stl  : Sample ASCII STL 3D geometry
 - data\temperature\synthetic...  : Sample ANSYS nodal temperature CSV

@@ -61,29 +61,119 @@ double Solver1D::exact_solution(double x, const RodParameters& p) {
          + (p.q / (2.0 * p.k)) * x * (p.L - x);
 }
 
+core::Result<void> Solver1D::validate_inputs(
+    const RodParameters& params,
+    const std::vector<size_t>& mesh_sizes)
+{
+    if (!std::isfinite(params.L) || params.L <= 0.0) {
+        return core::Result<void>::fail(
+            core::StatusCode::InvalidArgument,
+            "Rod length L must be a positive finite real number");
+    }
+    if (!std::isfinite(params.A) || params.A <= 0.0) {
+        return core::Result<void>::fail(
+            core::StatusCode::InvalidArgument,
+            "Cross-sectional area A must be a positive finite real number");
+    }
+    if (!std::isfinite(params.k) || params.k <= 0.0) {
+        return core::Result<void>::fail(
+            core::StatusCode::InvalidArgument,
+            "Thermal conductivity k must be a positive finite real number");
+    }
+    if (!std::isfinite(params.q)) {
+        return core::Result<void>::fail(
+            core::StatusCode::InvalidArgument,
+            "Volumetric heat generation rate q must be finite");
+    }
+    if (!std::isfinite(params.T_left) || params.T_left < -273.15) {
+        return core::Result<void>::fail(
+            core::StatusCode::InvalidArgument,
+            "Left boundary temperature T_left must be finite and at or above absolute zero (-273.15 C)");
+    }
+    if (!std::isfinite(params.T_right) || params.T_right < -273.15) {
+        return core::Result<void>::fail(
+            core::StatusCode::InvalidArgument,
+            "Right boundary temperature T_right must be finite and at or above absolute zero (-273.15 C)");
+    }
+
+    if (mesh_sizes.empty()) {
+        return core::Result<void>::fail(
+            core::StatusCode::InvalidArgument,
+            "mesh_sizes must contain at least one mesh");
+    }
+    if (mesh_sizes.size() > kMaxMeshStudySizes) {
+        return core::Result<void>::fail(
+            core::StatusCode::InvalidArgument,
+            "mesh_sizes must contain no more than " + std::to_string(kMaxMeshStudySizes) + " meshes");
+    }
+
+    const double two_k = 2.0 * params.k;
+    const double source_coefficient = params.q / two_k;
+    const double temperature_delta = params.T_right - params.T_left;
+    if (!std::isfinite(two_k) || !std::isfinite(source_coefficient) ||
+        !std::isfinite(temperature_delta) ||
+        !std::isfinite(source_coefficient * params.L)) {
+        return core::Result<void>::fail(
+            core::StatusCode::InvalidArgument,
+            "Thermal parameters produce non-finite intermediate values");
+    }
+
+    const double maximum_source_term =
+        (source_coefficient * (params.L / 2.0)) * (params.L / 2.0);
+    if (!std::isfinite(maximum_source_term) ||
+        !std::isfinite(params.T_left + maximum_source_term) ||
+        !std::isfinite(params.T_right + maximum_source_term)) {
+        return core::Result<void>::fail(
+            core::StatusCode::InvalidArgument,
+            "Thermal parameters produce non-finite temperatures");
+    }
+
+    const double stiffness_numerator = params.k * params.A;
+    const double load_numerator = params.q * params.A;
+    if (!std::isfinite(stiffness_numerator) || stiffness_numerator <= 0.0 ||
+        !std::isfinite(load_numerator)) {
+        return core::Result<void>::fail(
+            core::StatusCode::InvalidArgument,
+            "Thermal parameters produce non-finite element coefficients");
+    }
+
+    for (const size_t N : mesh_sizes) {
+        if (N < 2) {
+            return core::Result<void>::fail(
+                core::StatusCode::InvalidArgument,
+                "Number of elements N must be at least 2");
+        }
+        if (N > kMaxMeshElements) {
+            return core::Result<void>::fail(
+                core::StatusCode::InvalidArgument,
+                "Number of elements N must not exceed " + std::to_string(kMaxMeshElements));
+        }
+
+        const double h = params.L / static_cast<double>(N);
+        const double stiffness_coefficient = stiffness_numerator / h;
+        const double load_coefficient = (load_numerator * h) / 2.0;
+        if (!std::isfinite(h) || h <= 0.0 ||
+            !std::isfinite(stiffness_coefficient) || stiffness_coefficient <= 0.0 ||
+            !std::isfinite(load_coefficient) ||
+            !std::isfinite(2.0 * stiffness_coefficient) ||
+            !std::isfinite(2.0 * load_coefficient)) {
+            return core::Result<void>::fail(
+                core::StatusCode::InvalidArgument,
+                "Thermal parameters produce non-finite solver coefficients for N=" + std::to_string(N));
+        }
+    }
+
+    return core::Result<void>::ok();
+}
+
 // ── FEA solver (single mesh) ────────────────────────────────────────────────
 
 core::Result<FEASolution> Solver1D::solve(const RodParameters& params, size_t N) {
     // ── Input validation ────────────────────────────────────────────────
-    if (N < 2) {
+    auto validation = validate_inputs(params, {N});
+    if (validation.is_err()) {
         return core::Result<FEASolution>::fail(
-            core::StatusCode::InvalidArgument,
-            "Number of elements N must be >= 2");
-    }
-    if (params.L <= 0.0) {
-        return core::Result<FEASolution>::fail(
-            core::StatusCode::InvalidArgument,
-            "Rod length L must be > 0");
-    }
-    if (params.A <= 0.0) {
-        return core::Result<FEASolution>::fail(
-            core::StatusCode::InvalidArgument,
-            "Cross-sectional area A must be > 0");
-    }
-    if (params.k <= 0.0) {
-        return core::Result<FEASolution>::fail(
-            core::StatusCode::InvalidArgument,
-            "Thermal conductivity k must be > 0");
+            validation.error().code, validation.error().message);
     }
 
     const size_t n_nodes = N + 1;
@@ -207,8 +297,16 @@ core::Result<FEASolution> Solver1D::solve(const RodParameters& params, size_t N)
 
 core::Result<MeshStudyResult> Solver1D::mesh_study(
     const RodParameters& params,
-    const std::vector<size_t>& mesh_sizes)
+    const std::vector<size_t>& mesh_sizes,
+    std::function<bool()> is_cancelled,
+    std::function<void(float, const std::string&)> on_progress)
 {
+    auto validation = validate_inputs(params, mesh_sizes);
+    if (validation.is_err()) {
+        return core::Result<MeshStudyResult>::fail(
+            validation.error().code, validation.error().message);
+    }
+
     MeshStudyResult study;
     study.params = params;
 
@@ -217,7 +315,21 @@ core::Result<MeshStudyResult> Solver1D::mesh_study(
     csv << "N,h,max_midpoint_error_C,node_0_T_C,node_mid_T_C,node_N_T_C\n";
     csv << std::setprecision(12);
 
-    for (size_t N : mesh_sizes) {
+    const size_t total_steps = mesh_sizes.size();
+
+    for (size_t i = 0; i < total_steps; ++i) {
+        if (is_cancelled && is_cancelled()) {
+            return core::Result<MeshStudyResult>::fail(
+                core::StatusCode::Cancelled, "Thermal analysis cancelled by user");
+        }
+
+        size_t N = mesh_sizes[i];
+
+        if (on_progress) {
+            float progress = static_cast<float>(i) / static_cast<float>(total_steps);
+            on_progress(progress, "Solving FEA mesh with N=" + std::to_string(N));
+        }
+
         auto result = solve(params, N);
         if (result.is_err()) {
             return core::Result<MeshStudyResult>::fail(
@@ -234,6 +346,15 @@ core::Result<MeshStudyResult> Solver1D::mesh_study(
             << sol.T_fe[sol.N] << "\n";
 
         study.solutions.push_back(std::move(result.value()));
+
+        if (is_cancelled && is_cancelled()) {
+            return core::Result<MeshStudyResult>::fail(
+                core::StatusCode::Cancelled, "Thermal analysis cancelled by user");
+        }
+    }
+
+    if (on_progress) {
+        on_progress(1.0f, "Thermal analysis complete");
     }
 
     study.csv_export = csv.str();

@@ -9,8 +9,7 @@ import {
   Cpu, 
   Radio, 
   Binary, 
-  Home,
-  ShieldCheck 
+  Home
 } from "lucide-react";
 import { HealthBadge } from "./HealthBadge";
 
@@ -32,10 +31,7 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Brand */}
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-3 group">
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center font-bold text-white shadow-md shadow-blue-500/20 group-hover:from-blue-500 group-hover:to-indigo-600 transition-all">
-                EX
-              </div>
+            <Link href="/" prefetch={false} className="flex items-center gap-3 group">
               <div>
                 <div className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                   ENGINEX <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">Workbench</span>
@@ -56,6 +52,7 @@ export function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={false}
                   className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all ${
                     isActive
                       ? "bg-blue-600/20 text-blue-400 border border-blue-500/30"
@@ -78,4 +75,3 @@ export function Navbar() {
     </header>
   );
 }
-

@@ -6,28 +6,44 @@ import {
   Upload, 
   Eye, 
   FileText, 
-  Info, 
   AlertTriangle, 
-  CheckCircle2, 
-  Layers, 
-  Activity, 
-  RefreshCw,
   Sparkles
 } from "lucide-react";
-import { StlViewer, StlTriangle } from "@/components/geometry/StlViewer";
-import { PointCloudViewer, TemperatureNode } from "@/components/geometry/PointCloudViewer";
-import { getApiBaseUrl } from "@/lib/api/client";
+import { StlViewer } from "@/components/geometry/StlViewer";
+import type { StlTriangle } from "@/components/geometry/StlViewer";
+import { PointCloudViewer } from "@/components/geometry/PointCloudViewer";
+import type { TemperatureNode } from "@/components/geometry/PointCloudViewer";
+import { getApiBaseUrl, getErrorMessage } from "@/lib/api/client";
+
+interface StlInspectionResponse {
+  error?: string;
+  filename: string;
+  triangle_count: number;
+  bounding_box: { dimensions: { x: number; y: number; z: number } };
+  triangles: StlTriangle[];
+}
+
+interface TemperatureDataResponse {
+  error?: string;
+  filename: string;
+  node_count: number;
+  temp_min: number;
+  temp_max: number;
+  temp_mean: number;
+  provenance: string;
+  nodes: TemperatureNode[];
+}
 
 export default function GeometryPage() {
   const [activeTab, setActiveTab] = useState<"stl" | "csv">("stl");
 
   // STL State
-  const [stlData, setStlData] = useState<any | null>(null);
+  const [stlData, setStlData] = useState<StlInspectionResponse | null>(null);
   const [stlLoading, setStlLoading] = useState<boolean>(false);
   const [stlError, setStlError] = useState<string | null>(null);
 
   // CSV State
-  const [csvData, setCsvData] = useState<any | null>(null);
+  const [csvData, setCsvData] = useState<TemperatureDataResponse | null>(null);
   const [csvLoading, setCsvLoading] = useState<boolean>(false);
   const [csvError, setCsvError] = useState<string | null>(null);
 
@@ -44,14 +60,14 @@ export default function GeometryPage() {
         body: JSON.stringify({ filename: file.name, content: text }),
       });
 
-      const data = await res.json();
+      const data: StlInspectionResponse = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to inspect STL file.");
       }
       setStlData(data);
       setActiveTab("stl");
-    } catch (err: any) {
-      setStlError(err?.message || "An unexpected error occurred parsing STL.");
+    } catch (err: unknown) {
+      setStlError(getErrorMessage(err, "An unexpected error occurred parsing STL."));
     } finally {
       setStlLoading(false);
     }
@@ -70,14 +86,14 @@ export default function GeometryPage() {
         body: JSON.stringify({ filename: file.name, content: text }),
       });
 
-      const data = await res.json();
+      const data: TemperatureDataResponse = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to import CSV file.");
       }
       setCsvData(data);
       setActiveTab("csv");
-    } catch (err: any) {
-      setCsvError(err?.message || "An unexpected error occurred parsing CSV.");
+    } catch (err: unknown) {
+      setCsvError(getErrorMessage(err, "An unexpected error occurred parsing CSV."));
     } finally {
       setCsvLoading(false);
     }
@@ -180,12 +196,12 @@ endsolid cube`;
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filename: "sample_cube.stl", content: sampleContent }),
       });
-      const data = await res.json();
+      const data: StlInspectionResponse = await res.json();
       if (!res.ok) throw new Error(data.error);
       setStlData(data);
       setActiveTab("stl");
-    } catch (err: any) {
-      setStlError(err?.message || "Failed to load sample STL.");
+    } catch (err: unknown) {
+      setStlError(getErrorMessage(err, "Failed to load sample STL."));
     } finally {
       setStlLoading(false);
     }
@@ -242,12 +258,12 @@ endsolid cube`;
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filename: "synthetic_ansys_sample.csv", content: sampleCsv }),
       });
-      const data = await res.json();
+      const data: TemperatureDataResponse = await res.json();
       if (!res.ok) throw new Error(data.error);
       setCsvData(data);
       setActiveTab("csv");
-    } catch (err: any) {
-      setCsvError(err?.message || "Failed to load sample CSV.");
+    } catch (err: unknown) {
+      setCsvError(getErrorMessage(err, "Failed to load sample CSV."));
     } finally {
       setCsvLoading(false);
     }

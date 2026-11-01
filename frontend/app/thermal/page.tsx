@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { 
   Flame, 
   Play, 
@@ -9,17 +9,33 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   Loader2,
-  Sparkles,
-  Info
+  Info,
+  XCircle,
+  Ban
 } from "lucide-react";
 import { ThermalChart } from "@/components/thermal/ThermalChart";
 import { ConvergenceTable } from "@/components/thermal/ConvergenceTable";
-import { getApiBaseUrl } from "@/lib/api/client";
+import {
+  getApiBaseUrl,
+  getErrorMessage,
+  fetchJob,
+  cancelJob,
+  type JobSubmitResponse,
+  type ThermalStudyResult,
+} from "@/lib/api/client";
+
+type JobState = "idle" | "submitting" | "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export default function ThermalPage() {
-  const [loading, setLoading] = useState<boolean>(false);
+  const [jobState, setJobState] = useState<JobState>("idle");
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number>(0);
+  const [statusMessage, setStatusMessage] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [studyResult, setStudyResult] = useState<any | null>(null);
+  const [studyResult, setStudyResult] = useState<ThermalStudyResult | null>(null);
+
+  // For backward compat we keep the loading flag derived from jobState
+  const loading = jobState === "submitting" || jobState === "queued" || jobState === "running";
 
   // Form input parameters (matching assignment specifications)
   const [lengthL, setLengthL] = useState<string>("1.0");
@@ -29,9 +45,63 @@ export default function ThermalPage() {
   const [tempLeft, setTempLeft] = useState<string>("100.0");
   const [tempRight, setTempRight] = useState<string>("20.0");
 
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const startPolling = useCallback((id: string) => {
+    stopPolling();
+    const base = getApiBaseUrl();
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const job = await fetchJob(id);
+        const status = job.status;
+        setProgress(job.progress ?? 0);
+        setStatusMessage(job.status_message ?? "");
+
+        if (status === "QUEUED") {
+          setJobState("queued");
+        } else if (status === "RUNNING") {
+          setJobState("running");
+        } else if (status === "COMPLETED") {
+          stopPolling();
+          setJobState("completed");
+          // Fetch result
+          try {
+            const resultRes = await fetch(`${base}/api/v1/jobs/${id}/result`, { cache: "no-store" });
+            if (resultRes.ok) {
+              const data: ThermalStudyResult = await resultRes.json();
+              setStudyResult(data);
+            }
+          } catch {}
+        } else if (status === "FAILED") {
+          stopPolling();
+          setJobState("failed");
+          setError(job.error_message || "Job failed.");
+        } else if (status === "CANCELLED") {
+          stopPolling();
+          setJobState("cancelled");
+          setError(null);
+        }
+      } catch {
+        // Network error – keep polling, don't lose the job
+      }
+    }, 500);
+  }, [stopPolling]);
+
   const runSimulation = async () => {
-    setLoading(true);
+    setJobState("submitting");
     setError(null);
+    setStudyResult(null);
+    setProgress(0);
+    setStatusMessage("Submitting job...");
+
     try {
       const base = getApiBaseUrl();
       const payload = {
@@ -44,23 +114,32 @@ export default function ThermalPage() {
         mesh_sizes: [10, 20, 40, 80],
       };
 
-      const res = await fetch(`${base}/api/v1/thermal/solve`, {
+      const res = await fetch(`${base}/api/v1/thermal/jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data: JobSubmitResponse & { error?: string } = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Simulation failed.");
+        throw new Error(data.error || "Job submission failed.");
       }
 
-      setStudyResult(data);
-    } catch (err: any) {
-      setError(err?.message || "Failed to execute thermal FEA study.");
-    } finally {
-      setLoading(false);
+      const newJobId = data.job_id;
+      setJobId(newJobId);
+      setJobState("queued");
+      startPolling(newJobId);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to submit thermal analysis job."));
+      setJobState("idle");
     }
+  };
+
+  const handleCancel = async () => {
+    if (!jobId) return;
+    try {
+      await cancelJob(jobId);
+    } catch {}
   };
 
   const downloadCsv = () => {
@@ -74,6 +153,51 @@ export default function ThermalPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const statusBadge = () => {
+    if (jobState === "queued") {
+      return (
+        <div className="flex items-center gap-2 text-xs text-yellow-300 bg-yellow-900/40 px-3 py-1.5 rounded-lg border border-yellow-700/50 animate-pulse">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <span>QUEUED – Waiting for worker…</span>
+        </div>
+      );
+    }
+    if (jobState === "running") {
+      return (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-900/40 px-3 py-1.5 rounded-lg border border-amber-700/50">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <span>RUNNING — {statusMessage || "Computing..."}</span>
+          </div>
+          <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-amber-500 transition-all duration-300 rounded-full"
+              style={{ width: `${Math.round(progress * 100)}%` }}
+            />
+          </div>
+          <div className="text-[10px] text-gray-500 font-mono text-right">{Math.round(progress * 100)}%</div>
+        </div>
+      );
+    }
+    if (jobState === "completed") {
+      return (
+        <div className="flex items-center gap-2 text-xs text-green-300 bg-green-900/40 px-3 py-1.5 rounded-lg border border-green-700/50">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span>COMPLETED</span>
+        </div>
+      );
+    }
+    if (jobState === "cancelled") {
+      return (
+        <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-800/60 px-3 py-1.5 rounded-lg border border-gray-700/50">
+          <Ban className="w-3.5 h-3.5" />
+          <span>CANCELLED</span>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -182,7 +306,7 @@ export default function ThermalPage() {
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Solving C++ FEA (N = 10, 20, 40, 80)...</span>
+                <span>Processing...</span>
               </>
             ) : (
               <>
@@ -191,6 +315,27 @@ export default function ThermalPage() {
               </>
             )}
           </button>
+
+          {/* Cancel button when job is running or queued */}
+          {loading && jobId && (
+            <button
+              onClick={handleCancel}
+              className="w-full py-2 px-4 rounded-lg bg-red-900/60 hover:bg-red-800/80 border border-red-700/50 text-xs font-medium text-red-300 flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <XCircle className="w-4 h-4" />
+              <span>Cancel Job</span>
+            </button>
+          )}
+
+          {/* Job status badge */}
+          {statusBadge()}
+
+          {/* Job ID reference */}
+          {jobId && jobState !== "idle" && (
+            <div className="text-[10px] font-mono text-gray-500 truncate">
+              Job: {jobId}
+            </div>
+          )}
 
           {error && (
             <div className="p-3 rounded-lg bg-red-950/60 border border-red-800/80 text-xs text-red-300 flex items-start gap-2">

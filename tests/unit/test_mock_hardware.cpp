@@ -96,6 +96,52 @@ void test_disconnected_telemetry_rejected() {
     std::cout << "  PASS: Disconnected device correctly rejects telemetry reads.\n";
 }
 
+void test_all_adapters_discovery_and_lifecycle() {
+    std::cout << "Running test_all_adapters_discovery_and_lifecycle...\n";
+    MockMCUAdapter mcu;
+    MockFPGAAdapter fpga;
+    MockJTAGAdapter jtag;
+
+    IDeviceAdapter* adapters[] = {&mcu, &fpga, &jtag};
+
+    for (auto* a : adapters) {
+        // Discovery & capability reporting
+        auto desc = a->describe();
+        TEST_ASSERT(desc.contains("id"), "Device description must have id");
+        TEST_ASSERT(desc.contains("label"), "Device description must have label");
+        TEST_ASSERT(desc.contains("type"), "Device description must have type");
+        TEST_ASSERT(desc.contains("state"), "Device description must have state");
+        TEST_ASSERT(desc["provenance"] == "SIMULATED", "Provenance must be explicitly SIMULATED");
+        TEST_ASSERT(a->state() == ConnectionState::Disconnected, "Initial state must be Disconnected");
+
+        // Connect
+        auto conn_res = a->connect();
+        TEST_ASSERT(conn_res.is_ok(), "Connect must succeed");
+        TEST_ASSERT(a->state() == ConnectionState::Connected, "State must be Connected");
+
+        // At least one telemetry message
+        auto t = a->read_telemetry();
+        TEST_ASSERT(t.is_ok(), "Initial telemetry read must succeed");
+        auto t_json = t.value().to_json();
+        TEST_ASSERT(t_json.contains("device_id"), "Telemetry must have device_id");
+        TEST_ASSERT(t_json["provenance"] == "SIMULATED — not real hardware telemetry", "Telemetry provenance must be SIMULATED");
+
+        // Disconnect
+        auto disc_res = a->disconnect();
+        TEST_ASSERT(disc_res.is_ok(), "Disconnect must succeed");
+        TEST_ASSERT(a->state() == ConnectionState::Disconnected, "State must be Disconnected after disconnect");
+
+        // Reconnect
+        auto reconn_res = a->connect();
+        TEST_ASSERT(reconn_res.is_ok(), "Reconnect must succeed");
+        TEST_ASSERT(a->state() == ConnectionState::Connected, "State must be Connected after reconnect");
+
+        // Cleanup
+        a->disconnect();
+    }
+    std::cout << "  PASS: Discovery, capability reporting, connect/disconnect, telemetry and reconnection verified across all adapters.\n";
+}
+
 int main() {
     std::cout << "=== ENGINEX Mock Hardware Adapter Tests ===\n";
     try {
@@ -104,7 +150,8 @@ int main() {
         test_fpga_telemetry_range();
         test_jtag_telemetry_and_describe();
         test_disconnected_telemetry_rejected();
-        std::cout << "\nALL 5 HARDWARE ADAPTER TESTS PASSED!\n";
+        test_all_adapters_discovery_and_lifecycle();
+        std::cout << "\nALL 6 HARDWARE ADAPTER TESTS PASSED!\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "\nTEST FAILED: " << e.what() << "\n";

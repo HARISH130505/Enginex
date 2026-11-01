@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Table, CheckCircle2, ShieldCheck } from "lucide-react";
+import { Table, ShieldCheck } from "lucide-react";
 
 interface WorkerResult {
   workers: number;
@@ -95,4 +95,3 @@ export function BenchmarkTable({ results, agreementVerified }: BenchmarkTablePro
     </div>
   );
 }
-

@@ -87,9 +87,8 @@ export function PointCloudViewer({ nodes, tempMin, tempMax }: PointCloudViewerPr
 
     // 4. Points Geometry
     let pointsMesh: THREE.Points | null = null;
-    let centerVec = new THREE.Vector3(0, 0, 0);
-
     if (nodes && nodes.length > 0) {
+      const centerVec = new THREE.Vector3(0, 0, 0);
       const positions: number[] = [];
       const colors: number[] = [];
       const deltaT = (tempMax - tempMin) > 1e-6 ? (tempMax - tempMin) : 1.0;
@@ -264,4 +263,3 @@ export function PointCloudViewer({ nodes, tempMin, tempMax }: PointCloudViewerPr
     </div>
   );
 }
-

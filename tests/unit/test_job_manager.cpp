@@ -38,7 +38,7 @@ void test_job_manager_lifecycle() {
 
     auto snapshot1 = jm.get_job(job_id);
     assert(snapshot1.is_ok());
-    assert(snapshot1.value()["status"] == "PENDING");
+    assert(snapshot1.value()["status"] == "QUEUED" || snapshot1.value()["status"] == "PENDING");
     assert(snapshot1.value()["progress"] == 0.0f);
 
     // Update progress

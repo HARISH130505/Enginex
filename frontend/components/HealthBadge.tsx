@@ -1,31 +1,37 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { fetchHealth, HealthResponse } from "@/lib/api/client";
-import { Activity, AlertCircle, CheckCircle2 } from "lucide-react";
+import { fetchHealth, getErrorMessage, type HealthResponse } from "@/lib/api/client";
+import { Activity, AlertCircle } from "lucide-react";
 
 export function HealthBadge() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const check = async () => {
-    try {
-      const data = await fetchHealth();
-      setHealth(data);
-      setError(null);
-    } catch (err: any) {
-      setError(err?.message || "Backend offline");
-      setHealth(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    check();
-    const interval = setInterval(check, 3000);
-    return () => clearInterval(interval);
+    let active = true;
+    const check = async () => {
+      try {
+        return { health: await fetchHealth(), error: null };
+      } catch (err: unknown) {
+        return { health: null, error: getErrorMessage(err, "Backend offline") };
+      }
+    };
+    const refresh = () => {
+      void check().then((result) => {
+        if (!active) return;
+        setHealth(result.health);
+        setError(result.error);
+        setLoading(false);
+      });
+    };
+    refresh();
+    const interval = setInterval(refresh, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   if (loading && !health && !error) {
@@ -59,4 +65,3 @@ export function HealthBadge() {
     </div>
   );
 }
-

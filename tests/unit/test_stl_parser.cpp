@@ -116,6 +116,15 @@ void test_stl_triangle_limit() {
     std::cout << "[PASS] Triangle limit correctly enforced with: " << result.error().message << "\n";
 }
 
+void test_stl_file_size_limit() {
+    std::cout << "[RUN] Testing STL negative case: exceeding max file size limit...\n";
+    std::string content = "solid test\n";
+    std::istringstream iss(content);
+    auto result = StlParser::parse_ascii(iss, "limit.stl", 5);
+    TEST_ASSERT(result.is_err(), "Exceeding file size limit must fail");
+    std::cout << "[PASS] File size limit correctly enforced with: " << result.error().message << "\n";
+}
+
 int main() {
     std::cout << "==================================================\n";
     std::cout << "  ENGINEX ASCII STL Parser Test Suite\n";
@@ -128,6 +137,7 @@ int main() {
         test_stl_truncated_facet();
         test_stl_nan_vertex();
         test_stl_triangle_limit();
+        test_stl_file_size_limit();
         std::cout << "\n>>> ALL ASCII STL PARSER TESTS PASSED! <<<\n";
         return 0;
     } catch (const std::exception& e) {

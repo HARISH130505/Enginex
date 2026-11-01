@@ -3,10 +3,15 @@
 #include <vector>
 #include <string>
 #include <cstddef>
+#include <functional>
 #include "workbench/core/result.hpp"
 #include "workbench/core/json.hpp"
 
 namespace enginex::thermal {
+
+// The current solver assembles a dense global stiffness matrix.
+inline constexpr size_t kMaxMeshElements = 1000;
+inline constexpr size_t kMaxMeshStudySizes = 16;
 
 // Physical parameters for the 1D steady-state heat conduction problem
 struct RodParameters {
@@ -50,15 +55,22 @@ public:
     // Exact analytical solution: T(x) = T_left + (T_right - T_left)(x/L) + (q/(2k))*x*(L - x)
     static double exact_solution(double x, const RodParameters& p);
 
+    // Validate physical inputs and mesh bounds before starting a solve or allocating result buffers.
+    static core::Result<void> validate_inputs(
+        const RodParameters& params,
+        const std::vector<size_t>& mesh_sizes
+    );
+
     // Solve the 1D steady-state FEA problem for a given number of elements N
     static core::Result<FEASolution> solve(const RodParameters& params, size_t N);
 
-    // Run mesh convergence study for N = {10, 20, 40, 80}
+    // Run mesh convergence study for N = {10, 20, 40, 80} with cooperative cancellation and progress callback
     static core::Result<MeshStudyResult> mesh_study(
         const RodParameters& params,
-        const std::vector<size_t>& mesh_sizes = {10, 20, 40, 80}
+        const std::vector<size_t>& mesh_sizes = {10, 20, 40, 80},
+        std::function<bool()> is_cancelled = nullptr,
+        std::function<void(float, const std::string&)> on_progress = nullptr
     );
 };
 
 } // namespace enginex::thermal
-

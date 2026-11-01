@@ -1,13 +1,15 @@
 # 15-Calendar-Day Execution Plan & Effort Budget
 ## ENGINEX — Unified Engineering Simulation & Analysis Platform (ENGINEX Workbench)
 
-**Total Budget:** 45 Hours across 15 Days (~3.0 Hours / Day)  
+**Planned Estimate:** 48 Hours across 15 Days (~3.2 Hours / Day; estimated, not a time log)
 **Target Platform:** Windows 11 x64  
 **Primary Deliverable:** Standalone, turnkey `CandidateID_Workbench.zip` with `Launch.exe`
 
 ---
 
 ### Daily Schedule & Milestone Breakdown
+
+This is a planning document. Milestone labels and exit criteria are not independent evidence that a task or test was completed.
 
 | Day | Focus / Work Breakdown | Estimated Effort | Milestone Output / Deliverable | Gate Exit Check |
 | :---: | :--- | :---: | :--- | :---: |
@@ -24,8 +26,7 @@
 | **Day 11** | **Phase G6 — Handwritten Backpropagation & C++ Core:** Candidate handwritten working sheet; C++ analytical gradient engine; central finite differences check ($\epsilon = 10^{-6}$, error $\le 10^{-5}$); 100-step training loss curve. | 3.5 hrs | • `docs/reference/handwritten-derivation-guide.md`<br>• `backend/src/neural/backprop.cpp`<br>• `frontend/app/backpropagation/page.tsx`<br>• `results/csv/backprop_loss_history.csv` | **Gate G6 PASS** |
 | **Day 12** | **Phase G7 — System Integration & UX Hardening:** Unified navigation; consistent error handling and user notifications; job polling and cancellation safety; responsive layout audits across laptop resolutions. | 3.5 hrs | • Polished dashboard theme<br>• Asynchronous job cancellation tests<br>• End-to-end integration test suite | **Gate G7 PASS** |
 | **Day 13** | **Phase G8.1 — Technical Documentation & AI Audit:** 6-page comprehensive technical report; complete AI-use log documenting prompts and challenge tests; ownership statement; README compilation. | 3.0 hrs | • `docs/report/technical-report.md`<br>• `docs/ai-use-log.md`<br>• `docs/ownership-statement.md`<br>• `README.md` | Documentation verified |
-| **Day 14** | **Phase G8.2 — Packaging & Clean-Machine Verification:** Native Win32 `Launch.exe` build; static frontend export; runtime DLL bundling; packaging into `CandidateID_Workbench.zip`; offline VM verification. | 3.5 hrs | • `packaging/windows/Launch.exe`<br>• `packaging/scripts/build_package.ps1`<br>• Offline test execution log without developer tools | Launch gate verified |
-| **Day 15** | **Phase G8.3 — Final Audit & Release Gate:** Timestamped demonstration walkthrough / video recording; Git repository bundle and history audit; submission checklist sign-off. | 2.5 hrs | • Final `CandidateID_Workbench.zip`<br>• Git bundle / commit log<br>• Walkthrough evidence & release sign-off | **Gate G8 PASS** |
+| **Day 14** | **Phase G8.2 — Packaging & Clean-Machine Verification:** Native Win32 `Launch.exe` build; static frontend export; runtime DLL bundling; package generation; clean/offline VM verification (planned, not performed). | 3.5 hrs | • `packaging/scripts/build_package.ps1`<br>• Release ZIP<br>• Clean-machine test log (pending) | Clean-machine gate pending |
+| **Day 15** | **Phase G8.3 — Final Audit & Release Gate:** Demonstration evidence, Git history/bundle review, and submission checklist sign-off. | 2.5 hrs | • Final ZIP<br>• Git evidence if required<br>• Walkthrough evidence and release sign-off | Release gate pending |
 
 **Total Estimated Hours:** 48.0 Hours (Well within the 40–50 hour target allocation).
-

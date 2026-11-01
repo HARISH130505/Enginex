@@ -2,17 +2,17 @@
 
 import React from "react";
 import Link from "next/link";
-import { 
-  Box, 
-  Flame, 
-  Cpu, 
-  Radio, 
-  Binary, 
-  ArrowRight, 
-  CheckCircle2, 
-  Terminal, 
-  Layers, 
-  HardDrive 
+import {
+  Box,
+  Flame,
+  Cpu,
+  Radio,
+  Binary,
+  ArrowRight,
+  CheckCircle2,
+  Terminal,
+  Layers,
+  HardDrive
 } from "lucide-react";
 
 const modules = [
@@ -84,10 +84,6 @@ export default function DashboardPage() {
       {/* Hero Section */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#0d1627] via-[#101b30] to-[#0d1627] p-8 border border-gray-800 shadow-2xl">
         <div className="relative z-10 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-900/40 border border-blue-700/50 text-blue-300 text-xs font-medium mb-4">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
-            PASS Science Works R&D Internship 2026–2027
-          </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
             ENGINEX <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-300">Workbench</span>
           </h1>
@@ -151,6 +147,7 @@ export default function DashboardPage() {
                   </div>
                   <Link
                     href={mod.route}
+                    prefetch={false}
                     className={`inline-flex items-center gap-1.5 text-xs font-semibold ${mod.textAccent} hover:underline`}
                   >
                     <span>Launch Module</span>
@@ -191,4 +188,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

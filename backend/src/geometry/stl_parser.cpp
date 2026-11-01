@@ -277,8 +277,14 @@ core::Result<StlMesh> StlParser::parse_ascii_string(
     const std::string& filename,
     size_t max_triangles
 ) {
+    if (content.size() > DEFAULT_MAX_FILE_SIZE) {
+        return core::Result<StlMesh>::fail(
+            core::StatusCode::InvalidArgument,
+            "STL file size exceeds configured safety limit of 52428800 bytes (50 MB)."
+        );
+    }
     std::istringstream iss(content);
-    return parse_ascii(iss, filename, content.size() + 1024, max_triangles);
+    return parse_ascii(iss, filename, DEFAULT_MAX_FILE_SIZE, max_triangles);
 }
 
 } // namespace enginex::geometry

@@ -4,6 +4,7 @@
 #include <string>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include "workbench/core/result.hpp"
 #include "workbench/core/json.hpp"
 #include "workbench/thermal/solver_1d.hpp"
@@ -36,10 +37,20 @@ struct WorkerBenchmarkResult {
 
 struct BenchmarkResult {
     std::string hardware_model;
+    size_t physical_cores = 0;
     size_t logical_cores = 0;
+    std::string ram_capacity;
+    std::string os_version;
+    std::string compiler_version;
+    std::string cpp_standard;
+    std::string build_config;
+    std::string compiler_flags;
+    std::string timing_methodology;
+
     size_t batch_size = 0;
     size_t elements_per_sim = 40;
     uint32_t seed = 42;
+    size_t warmup_reps = 1;
     size_t timed_reps = 5;
 
     std::vector<WorkerBenchmarkResult> worker_results;
@@ -61,7 +72,11 @@ public:
 
     // Run complete benchmark suite with warmup, timed reps, speedup, efficiency,
     // and numerical agreement verification across serial and parallel workers.
-    static core::Result<BenchmarkResult> run_benchmark(const BenchmarkConfig& config = BenchmarkConfig{});
+    static core::Result<BenchmarkResult> run_benchmark(
+        const BenchmarkConfig& config = BenchmarkConfig{},
+        std::function<bool()> is_cancelled = nullptr,
+        std::function<void(float, const std::string&)> on_progress = nullptr
+    );
 };
 
 } // namespace enginex::performance

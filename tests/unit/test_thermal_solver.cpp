@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include "workbench/thermal/solver_1d.hpp"
@@ -129,6 +130,88 @@ void test_csv_export_format() {
     std::cout << "  PASS: CSV export format verified.\n";
 }
 
+void test_solve_non_finite_parameters() {
+    std::cout << "Running test_solve_non_finite_parameters...\n";
+    double RodParameters::* fields[] = {
+        &RodParameters::L,
+        &RodParameters::A,
+        &RodParameters::k,
+        &RodParameters::q,
+        &RodParameters::T_left,
+        &RodParameters::T_right
+    };
+    const double invalid_values[] = {
+        std::numeric_limits<double>::quiet_NaN(),
+        std::numeric_limits<double>::infinity(),
+        -std::numeric_limits<double>::infinity()
+    };
+
+    for (const auto field : fields) {
+        for (const auto invalid_value : invalid_values) {
+            RodParameters p;
+            p.*field = invalid_value;
+            TEST_ASSERT(
+                Solver1D::solve(p, 10).is_err(),
+                "Every thermal parameter must reject NaN and infinity");
+        }
+    }
+
+    std::cout << "  PASS: NaN and positive/negative infinity rejected for every thermal parameter.\n";
+}
+
+void test_invalid_physical_ranges() {
+    std::cout << "Running test_invalid_physical_ranges...\n";
+    RodParameters p;
+
+    p.L = 0.0;
+    TEST_ASSERT(Solver1D::solve(p, 10).is_err(), "Zero rod length must fail");
+    p = RodParameters{};
+    p.A = -1.0;
+    TEST_ASSERT(Solver1D::solve(p, 10).is_err(), "Negative cross-sectional area must fail");
+    p = RodParameters{};
+    p.k = 0.0;
+    TEST_ASSERT(Solver1D::solve(p, 10).is_err(), "Zero conductivity must fail");
+    p = RodParameters{};
+    p.T_left = -273.16;
+    TEST_ASSERT(Solver1D::solve(p, 10).is_err(), "Temperature below absolute zero must fail");
+    p = RodParameters{};
+    p.T_right = -273.16;
+    TEST_ASSERT(Solver1D::solve(p, 10).is_err(), "Temperature below absolute zero must fail");
+    p = RodParameters{};
+    p.q = -10000.0;
+    TEST_ASSERT(Solver1D::solve(p, 10).is_ok(), "Finite negative heat generation (heat sink) is valid");
+
+    std::cout << "  PASS: Invalid physical ranges rejected; signed heat source remains supported.\n";
+}
+
+void test_mesh_element_limit() {
+    std::cout << "Running test_mesh_element_limit...\n";
+    RodParameters p;
+
+    TEST_ASSERT(kMaxMeshElements == 1000, "Maximum mesh element count must remain documented as 1000");
+    auto excessive_solve = Solver1D::solve(p, kMaxMeshElements + 1);
+    TEST_ASSERT(excessive_solve.is_err(), "solve above the element limit must fail before allocation");
+    TEST_ASSERT(
+        excessive_solve.error().message.find("must not exceed 1000") != std::string::npos,
+        "Excessive mesh error must state the maximum element count");
+
+    auto excessive_study = Solver1D::mesh_study(p, {10, kMaxMeshElements + 1});
+    TEST_ASSERT(excessive_study.is_err(), "mesh study above the element limit must fail");
+
+    std::vector<size_t> too_many_meshes(kMaxMeshStudySizes + 1, 10);
+    TEST_ASSERT(
+        Solver1D::mesh_study(p, too_many_meshes).is_err(),
+        "Mesh studies above the mesh-count limit must fail");
+
+    auto at_limit = Solver1D::solve(p, kMaxMeshElements);
+    TEST_ASSERT(at_limit.is_ok(), "The maximum supported mesh must remain valid");
+    TEST_ASSERT(
+        at_limit.value().T_fe.size() == kMaxMeshElements + 1,
+        "Maximum supported mesh must return all nodal temperatures");
+
+    std::cout << "  PASS: Element and study-count limits enforced; N=1000 remains supported.\n";
+}
+
 int main() {
     std::cout << "=== ENGINEX 1D Thermal FEA Solver Unit Tests ===\n";
     try {
@@ -139,11 +222,13 @@ int main() {
         test_mesh_convergence();
         test_solve_invalid_N();
         test_csv_export_format();
-        std::cout << "\nALL 7 THERMAL SOLVER TESTS PASSED!\n";
+        test_solve_non_finite_parameters();
+        test_invalid_physical_ranges();
+        test_mesh_element_limit();
+        std::cout << "\nALL 10 THERMAL SOLVER TESTS PASSED!\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "\nTEST FAILED: " << e.what() << "\n";
         return 1;
     }
 }
-

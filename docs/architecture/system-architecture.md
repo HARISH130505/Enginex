@@ -5,7 +5,7 @@
 ENGINEX Workbench is a unified, high-performance engineering simulation, analysis, and hardware-integration workbench. It is designed around three strict architectural tenets:
 1. **Framework-Independent C++17 Core:** All numerical solvers (FEA, gradient descent), data parsers (STL, CSV), concurrency primitives, and hardware mocks are implemented in ISO C++17 with zero dependencies on web or UI frameworks.
 2. **Unified Single-Origin Web Interface:** A modern Next.js + React + TypeScript + Tailwind CSS dashboard is statically compiled (`output: 'export'`) and directly served by the local C++ HTTP engine over loopback (`127.0.0.1`), eliminating Cross-Origin Resource Sharing (CORS) complexity and obviating the need for Node.js at end-user runtime.
-3. **Turnkey Zero-Admin Windows Deployment:** The entire workbench is packaged as an offline, zero-install distribution launched via a single double-click on `Launch.exe`, managing automated port selection, server lifecycle, browser launch, and clean shutdown.
+3. **Turnkey Windows Deployment (design target):** The application is packaged for local use through `Launch.exe`, which manages port selection, backend startup, and browser launch. Separate clean-machine, no-admin, offline, and shutdown verification must not be inferred from this architecture description.
 
 ---
 
@@ -20,7 +20,7 @@ flowchart TB
 
     subgraph Packaging ["Packaged Distribution (CandidateID_Workbench/)"]
         subgraph FrontendDist ["Statically Exported Frontend (frontend/out)"]
-            StaticFiles["HTML5 / React 18 / Tailwind CSS / Three.js Bundle"]
+            StaticFiles["HTML5 / React 19 / Tailwind CSS / Three.js Bundle"]
         end
 
         subgraph BackendServer ["Local C++ HTTP / REST Service (127.0.0.1:PORT)"]
@@ -59,12 +59,12 @@ The domain engine is organized into clean, isolated modules without circular dep
 
 * **Core (`core/`):**
   * `Result<T>`: Monadic error-handling type to represent success or structured failure codes without throwing unhandled exceptions across module boundaries.
-  * `JobManager`: Thread-safe job state machine (`QUEUED`, `RUNNING`, `COMPLETED`, `CANCELLED`, `FAILED`), providing progress reporting ($0.0 \dots 1.0$), non-blocking polling, cooperative cancellation flags, and persistent result storage.
+  * `JobManager`: Thread-safe job state machine (`QUEUED`, `RUNNING`, `COMPLETED`, `CANCELLED`, `FAILED`), providing progress reporting ($0.0 \dots 1.0$), non-blocking polling, cooperative cancellation flags, and in-memory result retention for the process lifetime.
   * `ThreadPool`: Bounded worker queue with fixed hardware threads, condition-variable dispatch, and deterministic task ID preservation.
 
 * **Geometry Subsystem (`geometry/`):**
   * `StlParser`: High-speed ASCII STL parser validating `solid`, `facet normal`, `outer loop`, `vertex`, and `endsolid` syntax. Checks for finite IEEE-754 coordinates, complete 3-vertex polygons, positive triangle counts, and computes min/max spatial bounding coordinates.
-  * `CsvParser`: Robust RFC-4180 compliant CSV parser enforcing the exact schema: `node_id,x_m,y_m,z_m,temperature_C`. Validates non-empty rows, duplicate node ID policies, numeric conversion, finite floating-point values, and computes temperature extrema.
+  * `CsvParser`: Parses the documented nodal-temperature schema `node_id,x_m,y_m,z_m,temperature_C`, with numeric/finite-value checks and duplicate-ID handling. Do not treat this project parser as a claim of full RFC 4180 compliance.
 
 * **Thermal Subsystem (`thermal/`):**
   * `Solver1D`: 1D steady-state heat conduction finite element solver with uniform heat generation:
@@ -96,10 +96,7 @@ The domain engine is organized into clean, isolated modules without circular dep
     * `Result<void> connect()`
     * `Result<void> disconnect()`
     * `Result<TelemetryMessage> readTelemetry()`
-  * Three concrete mock adapters:
-    1. `MicrocontrollerAdapter`: Models an ARM Cortex-M4 microcontroller (e.g. STM32F401RE over USB CDC / VCP).
-    2. `FpgaAdapter`: Models an FPGA platform (e.g. Lattice iCE40UP5K via SPI/UART bridging).
-    3. `JtagAdapter`: Models a dedicated hardware debug interface (e.g. FT2232H / ST-Link V3).
+  * Three concrete mock adapters represent an MCU, FPGA, and debug-adapter role. They are simulations, not physical transports. Any proposed STM32F401RE, iCE40UP5K, SWD/JTAG, UART, or SPI wiring is subject to the limitations in `embedded-system-design.md`; no board-level mapping is verified.
   * State recovery & fault injection: Configurable simulated timeout on connect/telemetry allowing demonstration of clear UI error badges and graceful retry recovery. All telemetry is strictly flagged `is_simulated = true`.
 
 * **Neural Subsystem (`neural/`):**
@@ -122,21 +119,22 @@ The domain engine is organized into clean, isolated modules without circular dep
   * `GET /api/v1/health`: System readiness, version, uptime, hardware capabilities.
   * `POST /api/v1/geometry/stl/inspect`: ASCII STL upload/inspection, triangle count, bounding box.
   * `POST /api/v1/geometry/temperature/import`: ANSYS temperature CSV parse and point statistics.
-  * `POST /api/v1/thermal/solve`: Launch 1D FEA mesh study ($N=10, 20, 40, 80$).
+  * `POST /api/v1/thermal/jobs`: Submit a validated asynchronous 1D FEA mesh study.
+  * `POST /api/v1/thermal/solve`: Synchronous thermal solve endpoint.
   * `GET /api/v1/jobs/{id}`: Asynchronous job polling (progress, state, status message).
+  * `GET /api/v1/jobs/{id}/result`: Retrieve a completed job result.
   * `POST /api/v1/jobs/{id}/cancel`: Cooperative job cancellation request.
   * `POST /api/v1/performance/run`: Execute serial vs multicore benchmark suite.
   * `GET /api/v1/hardware/devices`: Enumerate mock devices and status.
   * `POST /api/v1/hardware/{id}/connect`: Connect to selected mock device.
   * `POST /api/v1/hardware/{id}/disconnect`: Disconnect mock device.
-  * `POST /api/v1/hardware/{id}/telemetry`: Poll telemetry packet (supports simulated timeout test).
-  * `POST /api/v1/backprop/run`: Execute analytical gradients, finite difference checks, 100-step loss.
-  * `GET /api/v1/results/{id}/export`: Download generated result CSV files.
+  * `GET /api/v1/hardware/{id}/telemetry`: Poll telemetry packet (supports simulated timeout test).
+  * `POST /api/v1/neural/train`: Execute analytical gradients, finite-difference checks, and 100-step training.
 
 ---
 
 #### Layer 3: Frontend Client (`frontend/`)
-* Built with Next.js App Router, React 18, TypeScript, Tailwind CSS, Lucide-react icons, and Three.js.
+* Built with Next.js App Router, React 19, TypeScript, Tailwind CSS, Lucide-react icons, and Three.js.
 * Statically exported (`npm run build` -> `frontend/out/`).
 * Five dedicated engineering views:
   1. `/geometry`: STL 3D viewport with OrbitControls, triangle summary, CSV import toggle, 3D point cloud temperature visualizer, interactive node inspection tooltip.
@@ -155,4 +153,3 @@ The domain engine is organized into clean, isolated modules without circular dep
   * Polls `http://127.0.0.1:<PORT>/api/v1/health` until HTTP 200 is confirmed.
   * Invokes `ShellExecuteW(..., L"open", url, ...)` to launch the user's default browser.
   * Awaits termination or signals clean shutdown, ensuring no orphaned processes remain.
-

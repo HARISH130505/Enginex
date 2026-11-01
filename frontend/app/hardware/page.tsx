@@ -1,20 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { 
-  Radio, 
-  Cpu, 
   Layers, 
-  Terminal, 
-  AlertTriangle, 
-  RefreshCw, 
-  CheckCircle2, 
   Power, 
   Activity,
-  Zap,
-  Thermometer,
   ShieldAlert,
-  Info
 } from "lucide-react";
 import { getApiBaseUrl } from "@/lib/api/client";
 
@@ -52,21 +43,28 @@ export default function HardwarePage() {
   const [autoPoll, setAutoPoll] = useState<boolean>(true);
 
   // Fetch device list
-  const fetchDevices = useCallback(async () => {
+  const fetchDevices = useCallback(async (): Promise<DeviceInfo[] | null> => {
     try {
       const base = getApiBaseUrl();
       const res = await fetch(`${base}/api/v1/hardware/devices`);
       if (res.ok) {
-        const data = await res.json();
-        setDevices(data.devices || []);
+        const data: { devices?: DeviceInfo[] } = await res.json();
+        return data.devices || [];
       }
     } catch {
       // Fallback local preset if backend is temporarily unreachable
     }
+    return null;
   }, []);
 
   useEffect(() => {
-    fetchDevices();
+    let active = true;
+    void fetchDevices().then((nextDevices) => {
+      if (active && nextDevices) setDevices(nextDevices);
+    });
+    return () => {
+      active = false;
+    };
   }, [fetchDevices]);
 
   // Connect device
@@ -76,11 +74,12 @@ export default function HardwarePage() {
       const base = getApiBaseUrl();
       const res = await fetch(`${base}/api/v1/hardware/${deviceId}/connect`, { method: "POST" });
       if (res.ok) {
-        await fetchDevices();
+        const nextDevices = await fetchDevices();
+        if (nextDevices) setDevices(nextDevices);
         // Immediately fetch first telemetry
         fetchTelemetry(deviceId);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
     } finally {
       setLoadingDevice(null);
@@ -94,14 +93,15 @@ export default function HardwarePage() {
       const base = getApiBaseUrl();
       const res = await fetch(`${base}/api/v1/hardware/${deviceId}/disconnect`, { method: "POST" });
       if (res.ok) {
-        await fetchDevices();
+        const nextDevices = await fetchDevices();
+        if (nextDevices) setDevices(nextDevices);
         setTelemetry(prev => {
           const next = { ...prev };
           delete next[deviceId];
           return next;
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
     } finally {
       setLoadingDevice(null);

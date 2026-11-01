@@ -232,7 +232,20 @@ core::Result<TemperatureDataSet> CsvParser::parse_ansys_csv(
         );
     }
 
-    dataset.temp_mean = temp_sum / static_cast<double>(dataset.nodes.size());
+    // Recalculate statistics across stored nodes to guarantee exactness (including after overwrite policy)
+    dataset.temp_min = std::numeric_limits<double>::infinity();
+    dataset.temp_max = -std::numeric_limits<double>::infinity();
+    double recalculated_sum = 0.0;
+    dataset.bbox = BoundingBox{};
+
+    for (const auto& node : dataset.nodes) {
+        dataset.bbox.expand({node.x_m, node.y_m, node.z_m});
+        dataset.temp_min = std::min(dataset.temp_min, node.temperature_C);
+        dataset.temp_max = std::max(dataset.temp_max, node.temperature_C);
+        recalculated_sum += node.temperature_C;
+    }
+    dataset.temp_mean = recalculated_sum / static_cast<double>(dataset.nodes.size());
+
     return core::Result<TemperatureDataSet>::ok(std::move(dataset));
 }
 

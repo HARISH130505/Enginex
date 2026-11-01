@@ -118,7 +118,19 @@ void test_csv_duplicate_node_ids() {
     TEST_ASSERT(result_keep.value().nodes.size() == 2, "Expected 2 nodes kept");
     TEST_ASSERT(result_keep.value().duplicate_node_count == 1, "Expected 1 duplicate counted");
     TEST_ASSERT(std::abs(result_keep.value().nodes[0].temperature_C - 100.0) < 1e-4, "Kept node should be first instance (100 C)");
-    std::cout << "[PASS] KeepFirst policy correctly skipped duplicate and recorded count = 1.\n";
+    // Policy 3: Overwrite with recalculated statistics
+    auto result_overwrite = CsvParser::parse_ansys_csv_string(content, "dup.csv", DuplicatePolicy::Overwrite);
+    TEST_ASSERT(result_overwrite.is_ok(), "Overwrite policy must succeed");
+    const auto& ds_over = result_overwrite.value();
+    TEST_ASSERT(ds_over.nodes.size() == 2, "Expected 2 nodes after overwrite");
+    TEST_ASSERT(ds_over.duplicate_node_count == 1, "Expected 1 duplicate count");
+    TEST_ASSERT(std::abs(ds_over.nodes[0].temperature_C - 80.0) < 1e-4, "Overwritten node should have new temperature (80 C)");
+    // Recomputed statistics check: nodes are {1: 80.0 C} and {2: 50.0 C}
+    // Min should be 50.0, Max should be 80.0, Mean should be 65.0
+    TEST_ASSERT(std::abs(ds_over.temp_min - 50.0) < 1e-4, "Recalculated temp_min must be 50.0 C");
+    TEST_ASSERT(std::abs(ds_over.temp_max - 80.0) < 1e-4, "Recalculated temp_max must be 80.0 C");
+    TEST_ASSERT(std::abs(ds_over.temp_mean - 65.0) < 1e-4, "Recalculated temp_mean must be 65.0 C");
+    std::cout << "[PASS] Overwrite policy correctly updated node and recomputed statistics.\n";
 }
 
 int main() {

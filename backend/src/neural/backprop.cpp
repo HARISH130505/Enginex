@@ -223,7 +223,7 @@ core::Result<TrainingResult> BackpropCore::train(
 
     std::ostringstream csv;
     csv << "step,loss,y_hat,w,b,v,c,dJ_dw,dJ_db,dJ_dv,dJ_dc\n";
-    csv << std::setprecision(8) << std::fixed;
+    csv << std::setprecision(16);
 
     for (size_t step = 0; step <= steps; ++step) {
         ForwardState state = forward(x, y, current);

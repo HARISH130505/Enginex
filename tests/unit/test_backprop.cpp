@@ -117,6 +117,45 @@ void test_csv_export_format() {
     std::cout << "  PASS: CSV export format verified.\n";
 }
 
+void test_loss_progression_reference_milestones() {
+    std::cout << "Running test_loss_progression_reference_milestones...\n";
+    auto res = BackpropCore::train(1.0, 2.0, ModelParameters{}, 0.1, 100);
+    TEST_ASSERT(res.is_ok(), "train() failed");
+
+    const auto& tr = res.value();
+    TEST_ASSERT(tr.history.size() == 101, "History must contain 101 steps");
+
+    // Reference targets:
+    // Step 0: ~ 1.182541819
+    // Step 10: ~ 0.010211016
+    // Step 50: ~ 1.2761e-10
+    // Step 100: ~ 1.7026e-20
+    double loss_0 = tr.history[0].loss;
+    double loss_10 = tr.history[10].loss;
+    double loss_50 = tr.history[50].loss;
+    double loss_100 = tr.history[100].loss;
+
+    std::cout << "    Step 0 loss:   " << loss_0 << "\n";
+    std::cout << "    Step 10 loss:  " << loss_10 << "\n";
+    std::cout << "    Step 50 loss:  " << loss_50 << "\n";
+    std::cout << "    Step 100 loss: " << loss_100 << "\n";
+
+    TEST_ASSERT(std::fabs(loss_0 - 1.182541819) < 1e-6, "Step 0 loss mismatch");
+    TEST_ASSERT(std::fabs(loss_10 - 0.010211016) < 1e-4, "Step 10 loss mismatch");
+    TEST_ASSERT(loss_50 < 1.0e-8, "Step 50 loss should be around 1e-10");
+    TEST_ASSERT(loss_100 < 1.0e-15, "Step 100 loss should be around 1e-20");
+
+    // Verify initial simultaneous update matches analytical targets:
+    // w = 0.6209464475, b = 0.1209464475, v = 1.0710682047, c = 0.1537882843
+    const auto& p1 = tr.history[1].params;
+    TEST_ASSERT(std::fabs(p1.w - 0.6209464475) < 1e-7, "Step 1 w mismatch");
+    TEST_ASSERT(std::fabs(p1.b - 0.1209464475) < 1e-7, "Step 1 b mismatch");
+    TEST_ASSERT(std::fabs(p1.v - 1.0710682047) < 1e-7, "Step 1 v mismatch");
+    TEST_ASSERT(std::fabs(p1.c - 0.1537882843) < 1e-7, "Step 1 c mismatch");
+
+    std::cout << "  PASS: Loss progression milestones and step 1 simultaneous updates verified.\n";
+}
+
 int main() {
     std::cout << "=== ENGINEX Neural Backpropagation Unit Tests ===\n";
     try {
@@ -125,7 +164,8 @@ int main() {
         test_central_finite_difference_verification();
         test_100_step_training_monotonic_loss_decrease();
         test_csv_export_format();
-        std::cout << "\nALL 5 BACKPROPAGATION TESTS PASSED!\n";
+        test_loss_progression_reference_milestones();
+        std::cout << "\nALL 6 BACKPROPAGATION TESTS PASSED!\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "\nTEST FAILED: " << e.what() << "\n";

@@ -49,3 +49,20 @@ set_tests_properties(CsvParserTest PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_
 set_target_properties(test_csv_parser PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
 )
+
+# 4. Thermal FEA Solver test
+add_executable(test_thermal_solver
+    unit/test_thermal_solver.cpp
+)
+target_include_directories(test_thermal_solver PRIVATE
+    ${CMAKE_SOURCE_DIR}/backend/include
+)
+target_link_libraries(test_thermal_solver PRIVATE
+    workbench_thermal
+    workbench_core
+)
+add_test(NAME ThermalSolverTest COMMAND test_thermal_solver)
+set_tests_properties(ThermalSolverTest PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+set_target_properties(test_thermal_solver PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
+)

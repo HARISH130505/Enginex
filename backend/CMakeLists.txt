@@ -28,7 +28,18 @@ target_link_libraries(workbench_geometry PUBLIC
     workbench_core
 )
 
-# 3. API library target
+# 3. Thermal FEA library target
+add_library(workbench_thermal STATIC
+    src/thermal/solver_1d.cpp
+)
+target_include_directories(workbench_thermal PUBLIC
+    ${WORKBENCH_INCLUDE_DIR}
+)
+target_link_libraries(workbench_thermal PUBLIC
+    workbench_core
+)
+
+# 4. API library target
 add_library(workbench_api STATIC
     src/api/http_server.cpp
 )
@@ -37,6 +48,7 @@ target_include_directories(workbench_api PUBLIC
 )
 target_link_libraries(workbench_api PUBLIC
     workbench_geometry
+    workbench_thermal
     workbench_core
 )
 
@@ -44,13 +56,14 @@ if (WIN32)
     target_link_libraries(workbench_api PUBLIC ws2_32)
 endif()
 
-# 4. Backend server executable
+# 5. Backend server executable
 add_executable(backend_server
     src/main.cpp
 )
 target_link_libraries(backend_server PRIVATE
     workbench_api
     workbench_geometry
+    workbench_thermal
     workbench_core
 )
 

@@ -264,3 +264,4 @@ export function PointCloudViewer({ nodes, tempMin, tempMax }: PointCloudViewerPr
     </div>
   );
 }
+

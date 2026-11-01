@@ -189,3 +189,4 @@ export function StlViewer({ triangles, wireframeDefault = false }: StlViewerProp
     </div>
   );
 }
+

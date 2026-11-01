@@ -7,6 +7,7 @@
 #include "workbench/core/job_manager.hpp"
 #include "workbench/geometry/stl_parser.hpp"
 #include "workbench/geometry/csv_parser.hpp"
+#include "workbench/thermal/solver_1d.hpp"
 
 #include <iostream>
 #include <filesystem>
@@ -207,7 +208,52 @@ void HttpServer::setup_routes() {
         }
     });
 
-    // 6. Static web assets mounting (for exported Next.js client)
+    // 6. Thermal FEA solver endpoint
+    m_server->Post("/api/v1/thermal/solve", [](const httplib::Request& req, httplib::Response& res) {
+        thermal::RodParameters params;
+        std::vector<size_t> mesh_sizes = {10, 20, 40, 80};
+
+        try {
+            if (!req.body.empty()) {
+                auto body_json = nlohmann::json::parse(req.body);
+                if (body_json.contains("L")) params.L = body_json["L"].get<double>();
+                if (body_json.contains("A")) params.A = body_json["A"].get<double>();
+                if (body_json.contains("k")) params.k = body_json["k"].get<double>();
+                if (body_json.contains("q")) params.q = body_json["q"].get<double>();
+                if (body_json.contains("T_left")) params.T_left = body_json["T_left"].get<double>();
+                if (body_json.contains("T_right")) params.T_right = body_json["T_right"].get<double>();
+                if (body_json.contains("mesh_sizes") && body_json["mesh_sizes"].is_array()) {
+                    mesh_sizes.clear();
+                    for (const auto& n : body_json["mesh_sizes"]) {
+                        mesh_sizes.push_back(n.get<size_t>());
+                    }
+                }
+            }
+        } catch (const std::exception& e) {
+            nlohmann::json err = {
+                {"error", std::string("Invalid request body: ") + e.what()},
+                {"code", "INVALID_INPUT"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = 400;
+            return;
+        }
+
+        auto result = thermal::Solver1D::mesh_study(params, mesh_sizes);
+        if (result.is_ok()) {
+            res.set_content(result.value().to_json().dump(), "application/json");
+            res.status = 200;
+        } else {
+            nlohmann::json err = {
+                {"error", result.error().message},
+                {"code", "THERMAL_SOLVER_ERROR"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = 400;
+        }
+    });
+
+    // 7. Static web assets mounting (for exported Next.js client)
     if (!m_config.web_root.empty()) {
         std::error_code ec;
         if (std::filesystem::exists(m_config.web_root, ec)) {

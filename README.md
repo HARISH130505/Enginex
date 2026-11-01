@@ -98,26 +98,45 @@ flowchart LR
 ### Source layout
 ```
 Enginex/
-├── backend/                     # ISO C++17 domain engines and local REST server
-│   ├── include/workbench/       # Public header interfaces
-│   │   ├── core/                # Result<T>, JobManager, ThreadPool
-│   │   ├── geometry/            # StlParser, CsvParser
-│   │   ├── thermal/             # Solver1D, MeshStudy
-│   │   ├── performance/         # BatchGenerator, BenchmarkHarness
-│   │   ├── hardware/            # IDeviceAdapter, MockAdapters
-│   │   ├── neural/              # BackpropCore
-│   │   └── api/                 # HttpServer, RestRoutes
-│   └── src/                     # C++17 implementation files
-├── frontend/                    # Next.js App Router + TypeScript + Tailwind UI
-│   ├── app/                     # 5 routed views: geometry, thermal, performance, hardware, backpropagation
-│   └── components/              # Three.js 3D viewers, SVG charts, status cards
-├── data/                        # Sample STL geometry and synthetic nodal-temperature CSV
-├── tests/                       # Unit, integration, and negative test fixtures
-├── results/                     # Exported CSV results; interactive plots are in the frontend
-├── docs/                        # Architecture, RTM, Risk Register, 15-day plan, AI log, Report
-├── packaging/                   # Win32 Launch.exe source, bundling scripts
-└── CMakeLists.txt               # Root multi-target build configuration
+├── CMakeLists.txt                # Root CMake project
+├── CMakePresets.json             # Windows Ninja release/debug presets
+├── backend/
+│   ├── include/workbench/
+│   │   ├── api/                  # HTTP server interface
+│   │   ├── core/                 # Job manager, JSON, and Result types
+│   │   ├── geometry/             # STL and CSV parser interfaces
+│   │   ├── hardware/             # Device adapter interfaces and mocks
+│   │   ├── neural/               # Backpropagation interface
+│   │   ├── performance/          # Batch, benchmark, and thread-pool interfaces
+│   │   └── thermal/              # 1D thermal solver interface
+│   └── src/                      # Implementations, grouped by the same modules
+├── data/
+│   ├── geometry/sample_cube.stl
+│   └── temperature/synthetic_ansys_sample.csv
+├── dist/
+│   ├── CandidateID_Workbench/    # Packaged runtime: README, sample data, results, and web/
+│   └── CandidateID_Workbench.zip # Packaged runtime archive
+├── docs/
+│   ├── architecture/             # System design, requirements, decisions, and plans
+│   └── reference/                # Higher-precision training reference data
+├── frontend/
+│   ├── app/                      # Home plus geometry, thermal, performance, hardware,
+│   │                             # and backpropagation routes
+│   ├── components/               # Shared UI and module-specific visualizations
+│   └── lib/api/client.ts          # Backend API client
+├── packaging/
+│   ├── launch/                   # Native Windows launcher source and CMake target
+│   └── scripts/                  # Release packaging script and package notes
+├── results/
+│   ├── benchmarks/
+│   └── csv/
+├── tests/
+│   ├── fixtures/                 # Valid and invalid STL/CSV inputs
+│   └── unit/                     # C++ unit and job-integration tests
+└── test_live_api.ps1             # Manual live-backend integration workflow
 ```
+
+The checked-in `dist/` entries are the packaged runtime bundle and ZIP. Build output (for example, `build/`) and frontend dependencies (`frontend/node_modules/`) are generated locally and are not part of this source layout.
 
 ---
 

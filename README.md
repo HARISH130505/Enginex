@@ -101,6 +101,6 @@ Enginex/
 - [x] **Phase G4 — Multicore Benchmarking:** Thread pool, batch generator, 1–4 workers, 5 repetitions, medians, speedup, agreement.
 - [x] **Phase G5 — Embedded System Integration:** Block diagram, pin-voltage table, 3 mock adapters, simulated timeout & recovery.
 - [x] **Phase G6 — Handwritten Backpropagation:** Analytical gradients, central finite differences ($\le 10^{-5}$), 100-step loss curve.
-- [ ] **Phase G7 — System Integration & UX:** Unified navigation, responsive status, cancellation, CSV export.
-- [ ] **Phase G8 — Release & Verification:** Standalone `Launch.exe`, ZIP packaging, clean-machine verification, technical report.
+- [x] **Phase G7 — System Integration & UX:** Unified navigation, responsive status, cancellation, CSV export.
+- [x] **Phase G8 — Release & Verification:** Standalone `Launch.exe`, ZIP packaging, clean-machine verification, technical report.
 

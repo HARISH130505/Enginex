@@ -164,3 +164,4 @@ export function LossChart({ history }: LossChartProps) {
     </div>
   );
 }
+

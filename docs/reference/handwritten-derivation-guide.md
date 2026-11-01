@@ -138,3 +138,4 @@ $$c_1 = 0.00000000 - (0.1)(-1.53788284) = 0.15378828$$
 - **Step 100:** Loss $J_{100} = 0.003185, \quad \hat{y} = 1.920194$
 
 The loss monotonically decreases across all 100 steps, approaching zero as $\hat{y} \to 2.0$.
+

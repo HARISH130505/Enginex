@@ -86,3 +86,4 @@ export function GradientTable({ entries, epsilon, tolerance }: GradientTableProp
     </div>
   );
 }
+

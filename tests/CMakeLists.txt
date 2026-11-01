@@ -119,3 +119,20 @@ set_tests_properties(MockHardwareTest PROPERTIES WORKING_DIRECTORY "${CMAKE_SOUR
 set_target_properties(test_mock_hardware PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
 )
+
+# 8. Neural Backpropagation test
+add_executable(test_backprop
+    unit/test_backprop.cpp
+)
+target_include_directories(test_backprop PRIVATE
+    ${CMAKE_SOURCE_DIR}/backend/include
+)
+target_link_libraries(test_backprop PRIVATE
+    workbench_neural
+    workbench_core
+)
+add_test(NAME BackpropTest COMMAND test_backprop)
+set_tests_properties(BackpropTest PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+set_target_properties(test_backprop PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
+)

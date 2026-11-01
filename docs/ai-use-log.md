@@ -118,6 +118,21 @@ This log documents all interactions with generative AI tools during the architec
   - Verified 100% CTest pass rate (7/7 test suites including `MockHardwareTest`). Verified live HTTP endpoints over loopback origin.
   - Declared explicit `SIMULATED` provenance across all C++ telemetry payloads and UI badges.
 
+#### Interaction 08: Phase G6 Handwritten Neural Backpropagation (Task F)
+- **Date:** 31 October 2026
+- **AI Tool / Model:** Gemini 3.8 Flash via Antigravity Pair-Programming Assistant
+- **Task Description:** Implement handcrafted C++17 single-sample neural backpropagation engine without auto-diff, central finite differences gradient verification ($\epsilon = 10^{-6}$, error $\le 10^{-5}$), 100-step gradient descent training history, comprehensive derivation guide, and interactive UI view with SVG loss curve.
+- **Key Actions & Verification:**
+  - Authored mathematical derivation guide: `docs/reference/handwritten-derivation-guide.md` with full step-by-step chain rule derivations, computation graph Mermaid diagram, and numerical evaluation at step 0 ($z=0.5, h \approx 0.4621, \hat{y} \approx 0.4621, J_0 \approx 1.1825$).
+  - Implemented `enginex::neural::BackpropCore` in `backend/src/neural/backprop.cpp` with exact analytical gradients:
+    $\frac{\partial J}{\partial c} = \delta$, $\frac{\partial J}{\partial v} = \delta \cdot h$, $\frac{\partial J}{\partial w} = \delta \cdot v \cdot (1 - h^2) \cdot x$, $\frac{\partial J}{\partial b} = \delta \cdot v \cdot (1 - h^2)$.
+  - Implemented central finite difference verification: checked all 4 parameters w.r.t numerical approximation with $\epsilon = 10^{-6}$. Verified max error $= 1.13 \times 10^{-10} \ll 10^{-5}$ tolerance.
+  - Implemented 100-step training loop with $\eta = 0.1$: loss strictly decreased monotonically from $1.1825$ down to $1.70 \times 10^{-20}$ ($\hat{y} \to 2.0000$).
+  - Added REST endpoint `POST /api/v1/neural/train` and exported `results/csv/backpropagation_training.csv`.
+  - Built interactive Next.js view with custom SVG `LossChart.tsx`, `GradientTable.tsx`, and formula cards.
+  - Verified 100% CTest pass rate (8/8 test suites including `BackpropTest`).
+
+
 
 
 

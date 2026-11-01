@@ -64,7 +64,18 @@ target_link_libraries(workbench_hardware PUBLIC
     workbench_core
 )
 
-# 6. API library target
+# 6. Neural Backpropagation library target
+add_library(workbench_neural STATIC
+    src/neural/backprop.cpp
+)
+target_include_directories(workbench_neural PUBLIC
+    ${WORKBENCH_INCLUDE_DIR}
+)
+target_link_libraries(workbench_neural PUBLIC
+    workbench_core
+)
+
+# 7. API library target
 add_library(workbench_api STATIC
     src/api/http_server.cpp
 )
@@ -72,6 +83,7 @@ target_include_directories(workbench_api PUBLIC
     ${WORKBENCH_INCLUDE_DIR}
 )
 target_link_libraries(workbench_api PUBLIC
+    workbench_neural
     workbench_hardware
     workbench_performance
     workbench_geometry
@@ -83,12 +95,13 @@ if (WIN32)
     target_link_libraries(workbench_api PUBLIC ws2_32)
 endif()
 
-# 7. Backend server executable
+# 8. Backend server executable
 add_executable(backend_server
     src/main.cpp
 )
 target_link_libraries(backend_server PRIVATE
     workbench_api
+    workbench_neural
     workbench_hardware
     workbench_performance
     workbench_geometry

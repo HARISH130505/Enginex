@@ -11,6 +11,7 @@
 #include "workbench/performance/benchmark_harness.hpp"
 #include "workbench/hardware/device_adapter.hpp"
 #include "workbench/hardware/mock_adapters.hpp"
+#include "workbench/neural/backprop.hpp"
 #include <iostream>
 #include <filesystem>
 #include <chrono>
@@ -387,7 +388,53 @@ void HttpServer::setup_routes() {
         res.status = 404;
     });
 
-    // 12. Static web assets mounting (for exported Next.js client)
+    // 12. Neural backpropagation training & gradient verification endpoint
+    m_server->Post("/api/v1/neural/train", [](const httplib::Request& req, httplib::Response& res) {
+        double x = 1.0;
+        double y = 2.0;
+        neural::ModelParameters params;
+        double lr = 0.1;
+        size_t steps = 100;
+        double eps = 1.0e-6;
+
+        try {
+            if (!req.body.empty()) {
+                auto b = nlohmann::json::parse(req.body);
+                if (b.contains("x")) x = b["x"].get<double>();
+                if (b.contains("y")) y = b["y"].get<double>();
+                if (b.contains("w")) params.w = b["w"].get<double>();
+                if (b.contains("b")) params.b = b["b"].get<double>();
+                if (b.contains("v")) params.v = b["v"].get<double>();
+                if (b.contains("c")) params.c = b["c"].get<double>();
+                if (b.contains("lr")) lr = b["lr"].get<double>();
+                if (b.contains("steps")) steps = b["steps"].get<size_t>();
+                if (b.contains("epsilon")) eps = b["epsilon"].get<double>();
+            }
+        } catch (const std::exception& e) {
+            nlohmann::json err = {
+                {"error", std::string("Invalid input parameters: ") + e.what()},
+                {"code", "INVALID_INPUT"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = 400;
+            return;
+        }
+
+        auto result = neural::BackpropCore::train(x, y, params, lr, steps, eps);
+        if (result.is_ok()) {
+            res.set_content(result.value().to_json().dump(), "application/json");
+            res.status = 200;
+        } else {
+            nlohmann::json err = {
+                {"error", result.error().message},
+                {"code", "TRAIN_ERROR"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = 400;
+        }
+    });
+
+    // 13. Static web assets mounting (for exported Next.js client)
     if (!m_config.web_root.empty()) {
         std::error_code ec;
         if (std::filesystem::exists(m_config.web_root, ec)) {

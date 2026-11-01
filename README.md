@@ -103,3 +103,4 @@ Enginex/
 - [ ] **Phase G6 — Handwritten Backpropagation:** Analytical gradients, central finite differences ($\le 10^{-5}$), 100-step loss curve.
 - [ ] **Phase G7 — System Integration & UX:** Unified navigation, responsive status, cancellation, CSV export.
 - [ ] **Phase G8 — Release & Verification:** Standalone `Launch.exe`, ZIP packaging, clean-machine verification, technical report.
+

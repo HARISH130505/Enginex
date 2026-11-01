@@ -23,3 +23,4 @@ All selected libraries and dependencies are published under permissive open-sour
 - **ISC License:** `Lucide React`.
 
 No copyleft (GPL / AGPL) libraries are utilized. Redistribution within `CandidateID_Workbench.zip` complies strictly with all third-party license terms, with full copyright notices and licenses retained in `docs/reference/THIRD_PARTY_LICENSES.md`.
+

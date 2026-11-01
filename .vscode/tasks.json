@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ENGINEX: Build All (CMake + Ninja)",
+      "type": "shell",
+      "command": "cmake --build build --config Release",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "ENGINEX: Run CTest Suite",
+      "type": "shell",
+      "command": "ctest --test-dir build --output-on-failure",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "ENGINEX: Export Static Frontend (Next.js)",
+      "type": "shell",
+      "command": "cd frontend && npm run build",
+      "problemMatcher": []
+    }
+  ]
+}
+

@@ -155,3 +155,4 @@ The domain engine is organized into clean, isolated modules without circular dep
   * Polls `http://127.0.0.1:<PORT>/api/v1/health` until HTTP 200 is confirmed.
   * Invokes `ShellExecuteW(..., L"open", url, ...)` to launch the user's default browser.
   * Awaits termination or signals clean shutdown, ensuring no orphaned processes remain.
+

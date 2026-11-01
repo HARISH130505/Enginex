@@ -46,3 +46,15 @@ This log documents all interactions with generative AI tools during the architec
     3. Set diagonal entry: $K_{p,p} = 1.0$.
     4. Set load vector at boundary node: $F_p = T_p$.
   - This preserves matrix symmetry and guarantees exact numerical convergence to the analytical solution.
+
+#### Interaction 03: Phase G1 Skeleton & Latest Next.js v16.4.3 Upgrade
+- **Date:** 31 October 2026
+- **AI Tool / Model:** Gemini 3.8 Flash (Medium) via Antigravity Pair-Programming Assistant
+- **Task Description:** Build C++17 core library, loopback HTTP server with single loopback origin, Win32 `Launch.exe`, and upgrade frontend to the latest Next.js release (v16.4.3 + React 19).
+- **Key Actions & Verification:**
+  - Built `backend_server.exe`, `Launch.exe`, and `test_job_manager.exe` using CMake and Ninja with MinGW-w64 GCC 13.2.0.
+  - Ran CTest suite with 100% pass on `JobManagerLifecycleTest`.
+  - Upgraded Next.js to v16.4.3 with Turbopack, configured static export (`output: 'export'`), generated static assets into `frontend/out/`.
+  - Probed single-origin loopback server at `127.0.0.1:8091`: confirmed HTTP 200 on both static Next.js root (`/`) and C++ REST API (`/api/v1/health`).
+
+

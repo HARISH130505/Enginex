@@ -51,3 +51,4 @@
    - Updated params: $w \approx 0.620946$, $b \approx 0.120946$, $v \approx 1.071068$, $c \approx 0.153788$.
    - C++ central finite differences check ($\epsilon = 10^{-6}$): absolute error $\le 10^{-5}$ for each parameter.
    - 100-step training loss history and curve plot.
+

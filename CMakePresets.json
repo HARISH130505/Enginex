@@ -1,0 +1,47 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "windows-ninja-release",
+      "displayName": "Windows MinGW Ninja Release",
+      "description": "Target Windows 11 x64 using MinGW-w64 GCC and Ninja in Release mode",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_STANDARD": "17"
+      }
+    },
+    {
+      "name": "windows-ninja-debug",
+      "displayName": "Windows MinGW Ninja Debug",
+      "description": "Target Windows 11 x64 using MinGW-w64 GCC and Ninja in Debug mode",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_STANDARD": "17"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "release",
+      "configurePreset": "windows-ninja-release"
+    },
+    {
+      "name": "debug",
+      "configurePreset": "windows-ninja-debug"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-all",
+      "configurePreset": "windows-ninja-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
+

@@ -6,68 +6,96 @@
 [![Backend: C++17](https://img.shields.io/badge/Backend-C%2B%2B17-00599C.svg?logo=c%2B%2B)](https://isocpp.org)
 [![Frontend: Next.js + React](https://img.shields.io/badge/Frontend-Next.js%20%2B%20TypeScript-black.svg?logo=next.js)](https://nextjs.org)
 [![Build: CMake](https://img.shields.io/badge/Build-CMake-064F8C.svg?logo=cmake)](https://cmake.org)
-[![License: Permissive Open-Source](https://img.shields.io/badge/License-MIT%20%2F%20BSD-green.svg)](docs/ownership-statement.md)
-
 ---
 
-## 1. Overview
-**ENGINEX Workbench** is an integrated desktop engineering simulation and analysis suite uniting computer-aided design (CAD) visualization, finite-element thermal analysis, multithreaded high-performance computing, embedded hardware telemetry simulation, and handwritten neural backpropagation into one cohesive, single-origin interface.
+> A local engineering workbench bringing geometry inspection, numerical simulation, performance measurement, embedded-device mocks, and neural-network training together in one interface.
 
-### The Five Core Engineering Views
-1. **Geometry & CAD Inspector (`/geometry`):** 3D ASCII STL mesh inspection with spatial bounding boxes and 3D colored point-cloud rendering of ANSYS nodal temperature distributions (`node_id,x_m,y_m,z_m,temperature_C`) with temperature legend and node inspection.
-2. **Thermal Analysis (`/thermal`):** Exact 1D steady-state finite-element solver for a uniform heat-conducting rod with uniform volumetric heat generation ($qA$), comparing piecewise linear FE approximations against the exact analytical solution across $N \in \{10, 20, 40, 80\}$ elements with midpoint error interpolation.
-3. **Multicore Performance (`/performance`):** Reproducible serial and parallel batch simulation benchmarks across 1–4 CPU workers with deterministic input-order result preservation, speedup and efficiency calculation, and strict numerical agreement verification ($\max \Delta T \le 10^{-8\ \circ}\text{C}$).
-4. **Embedded Hardware Workbench (`/hardware`):** Host-connected integration design and C++ mock adapters for Microcontroller (ARM Cortex-M4), FPGA (Lattice iCE40UP5K), and JTAG debug interface (FT2232H), demonstrating real-time simulated telemetry, fault injection (timeout), and state recovery.
-5. **Neural Backpropagation (`/backpropagation`):** Single-sample regression training step ($x=1, y=2$) with analytical gradient derivations, central finite-difference verification ($\epsilon = 10^{-6}$, error $\le 10^{-5}$), and 100-step training loss history.
+## On this page
 
----
+- [Project overview](#project-overview)
+- [Engineering modules](#engineering-modules)
+- [Run the packaged application](#run-the-packaged-application)
+- [Build from source](#build-from-source)
+- [Architecture](#architecture)
+- [API overview](#api-overview)
+- [Validation and limitations](#validation-and-limitations)
+- [Project files](#project-files)
+- [Submission documentation](#submission-documentation)
 
-## 2. End-User Runtime Instructions (Zero-Admin / Turnkey)
-The packaged distribution `CandidateID_Workbench.zip` requires **no administrative rights, no compiler, no Node.js/Python, and no internet connection**.
+## Project overview
 
-1. Extract `CandidateID_Workbench.zip` to any folder on a Windows 11 x64 machine.
-2. Double-click `Launch.exe`.
-3. The launcher will automatically:
-   - Identify an available ephemeral loopback TCP port (`127.0.0.1`).
-   - Launch the local C++ calculation and REST service in the background.
-   - Await backend health readiness confirmation (`/api/v1/health`).
-   - Open your default web browser to the workbench dashboard.
-4. **Clean Exit:** To exit the workbench, close the launcher application window or press `Ctrl+C` in the launcher console. Windows Job Objects guarantee that all background backend processes are terminated cleanly without leaving orphaned processes.
+**ENGINEX Workbench** is a Windows-oriented engineering simulation and analysis application. Its statically exported Next.js interface communicates with a C++17 REST backend over a local loopback connection. The backend includes asynchronous job handling for longer-running thermal and performance work.
 
----
+The hardware module is a **software simulation** using mock adapters. It does not connect to physical hardware. Likewise, the bundled nodal-temperature CSV is synthetic sample data, not an ANSYS result.
 
-## 3. Developer Prerequisites & Source Build
+## Engineering modules
 
-### Prerequisites (Development Environment Only)
+| Module | Route | What it demonstrates |
+|---|---|---|
+| Geometry & data inspection | `/geometry` | ASCII STL parsing, mesh bounds, and a 3D temperature point cloud loaded from a nodal CSV. The sample CSV follows `node_id,x_m,y_m,z_m,temperature_C`. |
+| Thermal analysis | `/thermal` | A 1D steady-state linear-element FEM solution for a uniformly heated rod, compared with its analytical solution and mesh-convergence study. Example meshes use 10, 20, 40, and 80 elements. Requests are bounded to 1,000 elements per mesh and 16 meshes per study. |
+| Performance | `/performance` | Reproducible serial and parallel batches across 1–4 workers, with speedup, efficiency, and numerical-agreement reporting. |
+| Hardware workbench | `/hardware` | Mock MCU, FPGA, and debug-adapter discovery, telemetry, simulated timeout, and recovery state. Proposed hardware wiring is not physically verified. |
+| Backpropagation | `/backpropagation` | Single-sample regression, analytical gradients, central finite-difference checks, and 100 training steps. |
+
+## Run the packaged application
+
+The release archive is [`dist/CandidateID_Workbench.zip`](dist/CandidateID_Workbench.zip). It is a runtime bundle, not a source-code submission.
+
+1. Extract the archive to a folder on a Windows x64 computer.
+2. Run `Launch.exe`.
+3. The launcher starts the bundled backend on loopback, waits for `/api/v1/health`, and opens the Workbench in the default browser.
+4. Follow the launcher console's exit instruction when finished.
+
+The packaged frontend does not require Node.js or Python at runtime. A separate clean Windows 11, no-admin, and offline-machine validation **has not been performed**; these are intended deployment conditions, not verified compatibility claims. Backend process shutdown on a clean machine has not been independently verified.
+
+## Build from source
+
+### Prerequisites
 - **Operating System:** Windows 11 x64
 - **C++ Compiler:** GCC 13+ (MinGW-w64) or MSVC 2022 (with C++17 support)
 - **Build System:** CMake 3.20+ and Ninja
-- **Node.js:** v18.0+ or v20.0+ (used during development to build and export static web assets)
+- **Node.js:** Use a version supported by the installed Next.js version (currently declared as Next.js 16.x; Node.js 18 is not a suitable minimum).
 - **Git:** 2.30+
 
-### Building C++ Core and Test Suite
+### C++ backend and tests
+
 ```powershell
-# Configure CMake build with Ninja
 cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
-
-# Compile all libraries, test targets, and server binaries
 cmake --build build --config Release
-
-# Execute full GoogleTest + CTest verification suite
 ctest --test-dir build --output-on-failure
 ```
 
-### Building & Statically Exporting Frontend
+### Frontend static export
+
 ```powershell
 cd frontend
-npm install
+npm ci
 npm run build
-# Generates statically exported assets into frontend/out/
+npm run typecheck
+npm run lint
 ```
 
----
+The production frontend export is written to `frontend/out/`.
 
-## 4. Architecture & Module Boundaries
+## Architecture
+
+The frontend is served by the local C++ backend; the browser does not need a separate frontend development server when using the packaged release.
+
+```mermaid
+flowchart LR
+    U[User] --> B[Browser]
+    B -->|Static UI and loopback REST| S[C++17 HTTP server]
+    S --> J[Async JobManager]
+    S --> G[Geometry parsers]
+    S --> T[Thermal FEM solver]
+    S --> P[Performance benchmark]
+    S --> H[Mock hardware adapters]
+    S --> N[Backpropagation engine]
+    H -. simulated only .-> D[MCU / FPGA / debug-adapter model]
+```
+
+### Source layout
 ```
 Enginex/
 ├── backend/                     # ISO C++17 domain engines and local REST server
@@ -83,9 +111,9 @@ Enginex/
 ├── frontend/                    # Next.js App Router + TypeScript + Tailwind UI
 │   ├── app/                     # 5 routed views: geometry, thermal, performance, hardware, backpropagation
 │   └── components/              # Three.js 3D viewers, SVG charts, status cards
-├── data/                        # Verified synthetic fixtures (STL geometry, CSV nodal temps)
+├── data/                        # Sample STL geometry and synthetic nodal-temperature CSV
 ├── tests/                       # Unit, integration, and negative test fixtures
-├── results/                     # Raw exported CSVs, plots, and benchmark logs
+├── results/                     # Exported CSV results; interactive plots are in the frontend
 ├── docs/                        # Architecture, RTM, Risk Register, 15-day plan, AI log, Report
 ├── packaging/                   # Win32 Launch.exe source, bundling scripts
 └── CMakeLists.txt               # Root multi-target build configuration
@@ -93,14 +121,49 @@ Enginex/
 
 ---
 
-## 5. Phase Execution Status
-- [x] **Phase G0 — Discovery & Architecture:** Requirements extracted, RTM complete, DDR locked, Risk Register defined, 15-day plan committed.
-- [x] **Phase G1 — Skeleton & Build Pipeline:** CMake scaffold, C++ core, API server, Next.js static build, health check.
-- [x] **Phase G2 — Geometry & Data Visualization:** ASCII STL & CSV parsers, Three.js 3D viewers.
-- [x] **Phase G3 — 1D Thermal FEA Solver:** Rod formulation, assembly, exact analytical comparison, midpoint error, mesh study.
-- [x] **Phase G4 — Multicore Benchmarking:** Thread pool, batch generator, 1–4 workers, 5 repetitions, medians, speedup, agreement.
-- [x] **Phase G5 — Embedded System Integration:** Block diagram, pin-voltage table, 3 mock adapters, simulated timeout & recovery.
-- [x] **Phase G6 — Handwritten Backpropagation:** Analytical gradients, central finite differences ($\le 10^{-5}$), 100-step loss curve.
-- [x] **Phase G7 — System Integration & UX:** Unified navigation, responsive status, cancellation, CSV export.
-- [x] **Phase G8 — Release & Verification:** Standalone `Launch.exe`, ZIP packaging, clean-machine verification, technical report.
+## API overview
 
+All routes use the `/api/v1` prefix.
+
+| Purpose | Endpoint(s) |
+|---|---|
+| Health | `GET /health` |
+| Geometry import | `POST /geometry/stl/inspect`, `POST /geometry/temperature/import` |
+| Thermal solve | `POST /thermal/solve` |
+| Asynchronous thermal job | `POST /thermal/jobs` |
+| Performance run | `POST /performance/run` |
+| Asynchronous benchmark job | `POST /performance/jobs` |
+| Job status, result, cancellation | `GET /jobs/{id}`, `GET /jobs/{id}/result`, `POST /jobs/{id}/cancel` |
+| Hardware simulation | `GET /hardware/devices`, `POST /hardware/{id}/connect`, `POST /hardware/{id}/disconnect`, `GET /hardware/{id}/telemetry` |
+| Backpropagation training | `POST /neural/train` |
+
+## Validation and limitations
+
+The latest recorded CTest run reports **9 passed, 0 failed**. The project regression summary also reports successful frontend typecheck, lint, and build; thermal mesh checks and invalid-request handling; asynchronous thermal and benchmark jobs; hardware mock operations; backpropagation and finite-difference gradient checks; and cancellation/error handling.
+
+Stored numeric evidence includes:
+
+| Evidence | Recorded result | Artifact |
+|---|---|---|
+| Thermal mesh convergence | Midpoint errors of 1.25, 0.3125, 0.078125, and 0.01953125 °C for 10, 20, 40, and 80 elements | [`results/csv/thermal_convergence.csv`](results/csv/thermal_convergence.csv) |
+| Parallel numerical agreement | Recorded maximum serial/parallel discrepancy is 0 °C for 1–4 workers | [`results/benchmarks/benchmark_results.csv`](results/benchmarks/benchmark_results.csv) |
+| Backpropagation training | 101 recorded steps; higher-precision reference output is available | [`results/csv/backpropagation_training.csv`](results/csv/backpropagation_training.csv), [`docs/reference/backpropagation_training_100_steps.csv`](docs/reference/backpropagation_training_100_steps.csv) |
+
+These results were not all rerun while editing this README. See [`results/README.md`](results/README.md) for evidence provenance and gaps. No clean Windows 11/offline-machine test is claimed.
+
+## Project files
+
+- [`backend/`](backend/): C++ engines, asynchronous job management, and HTTP API.
+- [`frontend/`](frontend/): Next.js UI and 3D/plot components.
+- [`data/`](data/): Sample geometry and synthetic temperature data.
+- [`tests/`](tests/): C++ test suites and fixtures.
+- [`packaging/`](packaging/): Windows launcher and release packaging scripts.
+- [`docs/`](docs/): Architecture, design decisions, AI-use record, ownership/provenance, and report materials.
+## Submission documentation
+
+- [`docs/ai-use-log.md`](docs/ai-use-log.md): AI assistance disclosure and verification log.
+- [`docs/ownership-statement.md`](docs/ownership-statement.md): Ownership, attribution, and data provenance.
+- [`docs/architecture/embedded-system-design.md`](docs/architecture/embedded-system-design.md): Embedded design proposal and verification limitations.
+- [`results/README.md`](results/README.md): Results and evidence index.
+
+The handwritten derivation scan and six-page technical report PDF are pending as separate submission materials. Compare the requirements matrix with the official assignment before submission.

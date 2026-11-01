@@ -105,6 +105,20 @@ This log documents all interactions with generative AI tools during the architec
   - Measured on Intel64 Family 6 Model 140 (GenuineIntel, 4 logical cores). Batch of 100 × N=40 simulations each takes ~0.4 ms serially. Thread-spawn overhead exceeds computation time at this problem size, yielding sub-linear speedup ($S_2 = 0.72$, $S_4 = 0.55$). This is the correct honest measurement — the framework architecture is correct and agreement verified; observed behavior is expected when problem granularity is smaller than thread-launch latency.
   - 100% CTest pass rate (6/6). Exported `results/benchmarks/benchmark_results.csv`.
 
+#### Interaction 07: Phase G5 Embedded System Integration (Task E)
+- **Date:** 31 October 2026
+- **AI Tool / Model:** Gemini 3.8 Flash via Antigravity Pair-Programming Assistant
+- **Task Description:** Design host-connected embedded architecture, create C++ mock adapters for MCU (STM32F401RE), FPGA (Lattice iCE40UP5K), and JTAG debug interface (FTDI FT2232H), implement simulated fault injection (USART timeout) and auto-recovery, and document system architecture with block diagram and pin-voltage table.
+- **Key Actions & Verification:**
+  - Authored comprehensive specification: `docs/architecture/embedded-system-design.md` detailing system topology, pin-voltage table (3.3V / 1.2V / 5.0V domains), and ground-reference isolation.
+  - Implemented `enginex::hardware::IDeviceAdapter` interface with `MockMCUAdapter`, `MockFPGAAdapter`, and `MockJTAGAdapter`.
+  - Implemented simulated fault injection: every 7th telemetry read on STM32F401RE triggers a simulated USART timeout transition to `ConnectionState::Fault`, with automatic recovery via simulated SWD reset.
+  - Added REST endpoints: `GET /api/v1/hardware/devices`, `POST /api/v1/hardware/{id}/connect`, `POST /api/v1/hardware/{id}/disconnect`, and `GET /api/v1/hardware/{id}/telemetry`.
+  - Built interactive Next.js Hardware view with real-time auto-polling, live voltage/temp/current gauges, GPIO state bit visualizer, fault injection banner, and interactive wiring table.
+  - Verified 100% CTest pass rate (7/7 test suites including `MockHardwareTest`). Verified live HTTP endpoints over loopback origin.
+  - Declared explicit `SIMULATED` provenance across all C++ telemetry payloads and UI badges.
+
+
 
 
 

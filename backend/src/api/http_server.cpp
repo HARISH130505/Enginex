@@ -9,12 +9,27 @@
 #include "workbench/geometry/csv_parser.hpp"
 #include "workbench/thermal/solver_1d.hpp"
 #include "workbench/performance/benchmark_harness.hpp"
-
+#include "workbench/hardware/device_adapter.hpp"
+#include "workbench/hardware/mock_adapters.hpp"
 #include <iostream>
 #include <filesystem>
 #include <chrono>
+#include <memory>
 
 namespace enginex::api {
+
+// Singleton registry of all hardware adapters (initialized on first use)
+static std::vector<std::unique_ptr<hardware::IDeviceAdapter>>& get_devices() {
+    static std::vector<std::unique_ptr<hardware::IDeviceAdapter>> devices;
+    static bool initialized = false;
+    if (!initialized) {
+        devices.push_back(std::make_unique<hardware::MockMCUAdapter>());
+        devices.push_back(std::make_unique<hardware::MockFPGAAdapter>());
+        devices.push_back(std::make_unique<hardware::MockJTAGAdapter>());
+        initialized = true;
+    }
+    return devices;
+}
 
 HttpServer::HttpServer(ServerConfig config)
     : m_config(std::move(config)),
@@ -287,7 +302,92 @@ void HttpServer::setup_routes() {
         }
     });
 
-    // 8. Static web assets mounting (for exported Next.js client)
+    // 8. Hardware: list all devices
+    m_server->Get("/api/v1/hardware/devices", [](const httplib::Request&, httplib::Response& res) {
+        auto& devs = get_devices();
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto& d : devs) {
+            arr.push_back(d->describe());
+        }
+        nlohmann::json resp = {{"devices", arr}, {"count", arr.size()}};
+        res.set_content(resp.dump(2), "application/json");
+        res.status = 200;
+    });
+
+    // 9. Hardware: connect device by id
+    m_server->Post(R"(/api/v1/hardware/([^/]+)/connect)", [](const httplib::Request& req, httplib::Response& res) {
+        std::string dev_id = req.matches[1];
+        auto& devs = get_devices();
+        for (auto& d : devs) {
+            if (d->id() == dev_id) {
+                auto r = d->connect();
+                if (r.is_ok()) {
+                    nlohmann::json ok = {{"status", "connected"}, {"device_id", dev_id}};
+                    res.set_content(ok.dump(2), "application/json");
+                    res.status = 200;
+                } else {
+                    nlohmann::json err = {{"error", r.error().message}, {"code", "CONNECT_ERROR"}};
+                    res.set_content(err.dump(2), "application/json");
+                    res.status = 400;
+                }
+                return;
+            }
+        }
+        nlohmann::json err = {{"error", "Device not found: " + dev_id}, {"code", "NOT_FOUND"}};
+        res.set_content(err.dump(2), "application/json");
+        res.status = 404;
+    });
+
+    // 10. Hardware: disconnect device by id
+    m_server->Post(R"(/api/v1/hardware/([^/]+)/disconnect)", [](const httplib::Request& req, httplib::Response& res) {
+        std::string dev_id = req.matches[1];
+        auto& devs = get_devices();
+        for (auto& d : devs) {
+            if (d->id() == dev_id) {
+                auto r = d->disconnect();
+                nlohmann::json ok = {{"status", "disconnected"}, {"device_id", dev_id}};
+                res.set_content(ok.dump(2), "application/json");
+                res.status = 200;
+                return;
+            }
+        }
+        nlohmann::json err = {{"error", "Device not found: " + dev_id}, {"code", "NOT_FOUND"}};
+        res.set_content(err.dump(2), "application/json");
+        res.status = 404;
+    });
+
+    // 11. Hardware: read telemetry from device (auto-recover on fault)
+    m_server->Get(R"(/api/v1/hardware/([^/]+)/telemetry)", [](const httplib::Request& req, httplib::Response& res) {
+        std::string dev_id = req.matches[1];
+        auto& devs = get_devices();
+        for (auto& d : devs) {
+            if (d->id() == dev_id) {
+                // If faulted, auto-recover before reading
+                if (d->state() == hardware::ConnectionState::Fault) {
+                    d->recover();
+                }
+                auto t = d->read_telemetry();
+                if (t.is_ok()) {
+                    res.set_content(t.value().to_json().dump(2), "application/json");
+                    res.status = 200;
+                } else {
+                    nlohmann::json err = {
+                        {"error", t.error().message},
+                        {"code", "TELEMETRY_ERROR"},
+                        {"device_state", hardware::connection_state_to_string(d->state())}
+                    };
+                    res.set_content(err.dump(2), "application/json");
+                    res.status = 503;
+                }
+                return;
+            }
+        }
+        nlohmann::json err = {{"error", "Device not found: " + dev_id}, {"code", "NOT_FOUND"}};
+        res.set_content(err.dump(2), "application/json");
+        res.status = 404;
+    });
+
+    // 12. Static web assets mounting (for exported Next.js client)
     if (!m_config.web_root.empty()) {
         std::error_code ec;
         if (std::filesystem::exists(m_config.web_root, ec)) {

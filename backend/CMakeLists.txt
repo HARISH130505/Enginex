@@ -53,7 +53,18 @@ target_link_libraries(workbench_performance PUBLIC
     workbench_core
 )
 
-# 5. API library target
+# 5. Hardware mock adapters library target
+add_library(workbench_hardware STATIC
+    src/hardware/mock_adapters.cpp
+)
+target_include_directories(workbench_hardware PUBLIC
+    ${WORKBENCH_INCLUDE_DIR}
+)
+target_link_libraries(workbench_hardware PUBLIC
+    workbench_core
+)
+
+# 6. API library target
 add_library(workbench_api STATIC
     src/api/http_server.cpp
 )
@@ -61,6 +72,7 @@ target_include_directories(workbench_api PUBLIC
     ${WORKBENCH_INCLUDE_DIR}
 )
 target_link_libraries(workbench_api PUBLIC
+    workbench_hardware
     workbench_performance
     workbench_geometry
     workbench_thermal
@@ -71,12 +83,13 @@ if (WIN32)
     target_link_libraries(workbench_api PUBLIC ws2_32)
 endif()
 
-# 6. Backend server executable
+# 7. Backend server executable
 add_executable(backend_server
     src/main.cpp
 )
 target_link_libraries(backend_server PRIVATE
     workbench_api
+    workbench_hardware
     workbench_performance
     workbench_geometry
     workbench_thermal

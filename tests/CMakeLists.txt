@@ -102,3 +102,20 @@ set_tests_properties(ConcurrencyAgreementTest PROPERTIES WORKING_DIRECTORY "${CM
 set_target_properties(test_concurrency_agreement PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
 )
+
+# 7. Mock Hardware Adapter test
+add_executable(test_mock_hardware
+    unit/test_mock_hardware.cpp
+)
+target_include_directories(test_mock_hardware PRIVATE
+    ${CMAKE_SOURCE_DIR}/backend/include
+)
+target_link_libraries(test_mock_hardware PRIVATE
+    workbench_hardware
+    workbench_core
+)
+add_test(NAME MockHardwareTest COMMAND test_mock_hardware)
+set_tests_properties(MockHardwareTest PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+set_target_properties(test_mock_hardware PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
+)

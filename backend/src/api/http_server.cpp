@@ -8,6 +8,7 @@
 #include "workbench/geometry/stl_parser.hpp"
 #include "workbench/geometry/csv_parser.hpp"
 #include "workbench/thermal/solver_1d.hpp"
+#include "workbench/performance/benchmark_harness.hpp"
 
 #include <iostream>
 #include <filesystem>
@@ -253,7 +254,40 @@ void HttpServer::setup_routes() {
         }
     });
 
-    // 7. Static web assets mounting (for exported Next.js client)
+    // 7. Multicore benchmark execution endpoint
+    m_server->Post("/api/v1/performance/run", [](const httplib::Request& req, httplib::Response& res) {
+        performance::BenchmarkConfig config;
+
+        try {
+            if (!req.body.empty()) {
+                auto body_json = nlohmann::json::parse(req.body);
+                config = performance::BenchmarkConfig::from_json(body_json);
+            }
+        } catch (const std::exception& e) {
+            nlohmann::json err = {
+                {"error", std::string("Invalid benchmark configuration: ") + e.what()},
+                {"code", "INVALID_INPUT"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = 400;
+            return;
+        }
+
+        auto result = performance::BenchmarkHarness::run_benchmark(config);
+        if (result.is_ok()) {
+            res.set_content(result.value().to_json().dump(), "application/json");
+            res.status = 200;
+        } else {
+            nlohmann::json err = {
+                {"error", result.error().message},
+                {"code", "BENCHMARK_ERROR"}
+            };
+            res.set_content(err.dump(2), "application/json");
+            res.status = 400;
+        }
+    });
+
+    // 8. Static web assets mounting (for exported Next.js client)
     if (!m_config.web_root.empty()) {
         std::error_code ec;
         if (std::filesystem::exists(m_config.web_root, ec)) {

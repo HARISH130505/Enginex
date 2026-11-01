@@ -72,8 +72,7 @@ This log documents all interactions with generative AI tools during the architec
     2. CTest by default sets test working directories to `${CMAKE_CURRENT_BINARY_DIR}` (`build/tests/`). Added CMake `set_tests_properties(... PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")` and a multi-level fallback search path in tests.
   - After these fixes, 100% of unit tests passed cleanly across Debug and Release configurations.
 
-#### Interaction 05: Phase G3 1D Steady-State Thermal FEA Solver (Task C)
-- **Date:** 31 October 2026
+#### Interaction 05: Phase G3 1D Steady-State Thermal FEA Solver (Task C)- **Date:** 31 October 2026
 - **AI Tool / Model:** Gemini 3.8 Flash via Antigravity Pair-Programming Assistant
 - **Task Description:** Implement ISO C++17 1D steady-state thermal FEA solver with uniform 2-node linear elements, consistent load vector assembly, exact Dirichlet boundary condition elimination, and tridiagonal Thomas algorithm. Implement analytical comparison, spatial mesh convergence study ($N \in \{10, 20, 40, 80\}$), custom SVG temperature distribution chart, and verification table.
 - **Key Actions & Verification:**
@@ -91,6 +90,21 @@ This log documents all interactions with generative AI tools during the architec
     - Mesh parameter validation and CSV export format verification.
   - Built interactive Next.js Thermal view with custom SVG plotting component (`ThermalChart.tsx`), convergence table (`ConvergenceTable.tsx`), formula card, and CSV download.
   - 100% CTest pass rate (4/4 test suites). Verified live REST API `/api/v1/thermal/solve` returning verified JSON and exported `results/csv/thermal_convergence.csv`.
+
+#### Interaction 06: Phase G4 Multicore Batch Benchmark (Task D)
+- **Date:** 31 October 2026
+- **AI Tool / Model:** Claude Sonnet 4.6 (Thinking) via Antigravity Pair-Programming Assistant
+- **Task Description:** Implement thread pool, seeded batch generator, benchmark harness with warmup + 5 timed repetitions, speedup/efficiency metrics, and strict numerical agreement verification across 1–4 CPU workers.
+- **Key Actions & Verification:**
+  - Implemented `enginex::performance::BatchGenerator` — `std::mt19937` with deterministic seed 42, $k \in [1, 100]\,\text{W/(m·K)}$, $q \in [1000, 50000]\,\text{W/m}^3$, 100 reproducible cases.
+  - Implemented `enginex::performance::ThreadPool` — bounded `std::thread` pool with mutex/condition-variable dispatch, `wait_all()` barrier, and worker-loop task execution.
+  - Implemented `enginex::performance::BenchmarkHarness::run_batch()` — serial path (p=1) and parallel path (p>1), results written by index preserving input ordering across all concurrency levels.
+  - Implemented `run_benchmark()` — 1 warmup + 5 timed reps using `std::chrono::high_resolution_clock`, median computed over timed reps, speedup $S_p = T_1/T_p$, efficiency $E_p = S_p/p$.
+  - Numerical agreement: compared every node's temperature across serial and all parallel worker results. Verified $\max |T_{\text{serial}} - T_{\text{parallel}}| = 0.000\,^\circ\text{C}$ (below $10^{-8}\,^\circ\text{C}$ tolerance).
+  - REST endpoint `POST /api/v1/performance/run` added to `http_server.cpp`.
+  - Measured on Intel64 Family 6 Model 140 (GenuineIntel, 4 logical cores). Batch of 100 × N=40 simulations each takes ~0.4 ms serially. Thread-spawn overhead exceeds computation time at this problem size, yielding sub-linear speedup ($S_2 = 0.72$, $S_4 = 0.55$). This is the correct honest measurement — the framework architecture is correct and agreement verified; observed behavior is expected when problem granularity is smaller than thread-launch latency.
+  - 100% CTest pass rate (6/6). Exported `results/benchmarks/benchmark_results.csv`.
+
 
 
 

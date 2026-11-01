@@ -80,3 +80,4 @@ export function ConvergenceTable({ solutions }: ConvergenceTableProps) {
     </div>
   );
 }
+

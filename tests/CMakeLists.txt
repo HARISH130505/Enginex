@@ -66,3 +66,39 @@ set_tests_properties(ThermalSolverTest PROPERTIES WORKING_DIRECTORY "${CMAKE_SOU
 set_target_properties(test_thermal_solver PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
 )
+
+# 5. Batch Generator test
+add_executable(test_batch_generator
+    unit/test_batch_generator.cpp
+)
+target_include_directories(test_batch_generator PRIVATE
+    ${CMAKE_SOURCE_DIR}/backend/include
+)
+target_link_libraries(test_batch_generator PRIVATE
+    workbench_performance
+    workbench_thermal
+    workbench_core
+)
+add_test(NAME BatchGeneratorTest COMMAND test_batch_generator)
+set_tests_properties(BatchGeneratorTest PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+set_target_properties(test_batch_generator PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
+)
+
+# 6. Concurrency & Agreement test
+add_executable(test_concurrency_agreement
+    unit/test_concurrency_agreement.cpp
+)
+target_include_directories(test_concurrency_agreement PRIVATE
+    ${CMAKE_SOURCE_DIR}/backend/include
+)
+target_link_libraries(test_concurrency_agreement PRIVATE
+    workbench_performance
+    workbench_thermal
+    workbench_core
+)
+add_test(NAME ConcurrencyAgreementTest COMMAND test_concurrency_agreement)
+set_tests_properties(ConcurrencyAgreementTest PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+set_target_properties(test_concurrency_agreement PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests
+)

@@ -39,7 +39,21 @@ target_link_libraries(workbench_thermal PUBLIC
     workbench_core
 )
 
-# 4. API library target
+# 4. Performance benchmark library target
+add_library(workbench_performance STATIC
+    src/performance/batch_generator.cpp
+    src/performance/thread_pool.cpp
+    src/performance/benchmark_harness.cpp
+)
+target_include_directories(workbench_performance PUBLIC
+    ${WORKBENCH_INCLUDE_DIR}
+)
+target_link_libraries(workbench_performance PUBLIC
+    workbench_thermal
+    workbench_core
+)
+
+# 5. API library target
 add_library(workbench_api STATIC
     src/api/http_server.cpp
 )
@@ -47,6 +61,7 @@ target_include_directories(workbench_api PUBLIC
     ${WORKBENCH_INCLUDE_DIR}
 )
 target_link_libraries(workbench_api PUBLIC
+    workbench_performance
     workbench_geometry
     workbench_thermal
     workbench_core
@@ -56,12 +71,13 @@ if (WIN32)
     target_link_libraries(workbench_api PUBLIC ws2_32)
 endif()
 
-# 5. Backend server executable
+# 6. Backend server executable
 add_executable(backend_server
     src/main.cpp
 )
 target_link_libraries(backend_server PRIVATE
     workbench_api
+    workbench_performance
     workbench_geometry
     workbench_thermal
     workbench_core
